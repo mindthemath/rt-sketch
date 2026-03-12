@@ -102,7 +102,8 @@ main {
 footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
     padding: 0.75rem 1.5rem;
     background: #1a1a1a;
     border-top: 1px solid #333;
@@ -132,10 +133,17 @@ button:active { background: #555; }
 
 .sliders {
     display: flex;
+    flex-wrap: wrap;
     gap: 1.5rem;
     align-items: center;
     font-size: 0.85rem;
     margin-left: 1.5rem;
+}
+
+.slider-group {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
 }
 
 .sliders label {

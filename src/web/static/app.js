@@ -158,7 +158,7 @@
     });
 
     sliderAlpha.addEventListener("input", () => {
-        valAlpha.textContent = parseFloat(sliderAlpha.value).toFixed(1);
+        valAlpha.textContent = parseInt(sliderAlpha.value, 10);
         send("set_alpha", parseFloat(sliderAlpha.value));
     });
 })();
