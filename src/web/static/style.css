@@ -143,16 +143,29 @@ main {
 footer {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    padding: 0.75rem 1.5rem;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
     background: #1a1a1a;
     border-top: 1px solid #333;
+    font-size: 0.85rem;
 }
 
-.controls {
+footer label {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.4rem;
+    color: #999;
+    white-space: nowrap;
+}
+
+footer label span {
+    min-width: 1.8rem;
+    color: #6f6;
+}
+
+footer input[type="range"] {
+    width: 80px;
+    accent-color: #6f6;
 }
 
 button {
@@ -172,34 +185,3 @@ button:active { background: #555; }
 
 #btn-toggle { width: 5.5rem; }
 
-.sliders {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-    align-items: center;
-    font-size: 0.85rem;
-    margin-left: 1.5rem;
-}
-
-.slider-group {
-    display: flex;
-    gap: 1.5rem;
-    align-items: center;
-}
-
-.sliders label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #999;
-}
-
-.sliders input[type="range"] {
-    width: 120px;
-    accent-color: #6f6;
-}
-
-.sliders span {
-    min-width: 2rem;
-    color: #6f6;
-}
