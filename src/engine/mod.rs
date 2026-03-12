@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::config::Config;
 use canvas::{Canvas, LineSegment};
-use sampler::{LineLengthMode, SamplingStrategy};
+use sampler::SamplingStrategy;
 
 /// Result of a single engine step.
 pub struct StepResult {
@@ -25,10 +25,8 @@ pub struct ProposalEngine {
     processing_width: u32,
     processing_height: u32,
     stroke_width: f64,
-    min_line_len: f64,
-    max_line_len: f64,
-    pub line_length_mode: LineLengthMode,
-    pub fixed_line_len: f64,
+    pub min_line_len: f64,
+    pub max_line_len: f64,
 }
 
 impl ProposalEngine {
@@ -42,8 +40,6 @@ impl ProposalEngine {
             stroke_width: config.stroke_width_cm,
             min_line_len: config.min_line_len_cm,
             max_line_len: config.max_line_len_cm,
-            line_length_mode: LineLengthMode::Random,
-            fixed_line_len: 1.0,
         }
     }
 
@@ -74,8 +70,6 @@ impl ProposalEngine {
                     self.stroke_width,
                     self.min_line_len,
                     self.max_line_len,
-                    self.line_length_mode,
-                    self.fixed_line_len,
                 )
             })
             .collect();

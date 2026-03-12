@@ -46,15 +46,12 @@
                 <span id="val-k">10</span>
             </label>
             <label>
-                length:
-                <select id="select-line-mode">
-                    <option value="random">random</option>
-                    <option value="fixed">fixed</option>
-                </select>
+                min len: <input type="range" id="slider-min-len" min="0.1" max="15" step="0.1" value="0.2">
+                <span id="val-min-len">0.2</span> cm
             </label>
-            <label id="line-len-group">
-                <input type="range" id="slider-line-len" min="0.1" max="10" step="0.1" value="1.0">
-                <span id="val-line-len">1.0</span> cm
+            <label>
+                max len: <input type="range" id="slider-max-len" min="0.1" max="15" step="0.1" value="5.0">
+                <span id="val-max-len">5.0</span> cm
             </label>
         </div>
     </footer>

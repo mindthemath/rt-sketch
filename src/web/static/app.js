@@ -17,10 +17,10 @@
     const sliderK = document.getElementById("slider-k");
     const valK = document.getElementById("val-k");
 
-    const selectLineMode = document.getElementById("select-line-mode");
-    const lineLenGroup = document.getElementById("line-len-group");
-    const sliderLineLen = document.getElementById("slider-line-len");
-    const valLineLen = document.getElementById("val-line-len");
+    const sliderMinLen = document.getElementById("slider-min-len");
+    const valMinLen = document.getElementById("val-min-len");
+    const sliderMaxLen = document.getElementById("slider-max-len");
+    const valMaxLen = document.getElementById("val-max-len");
 
     function showImg(img, placeholder) {
         img.style.display = "block";
@@ -95,19 +95,28 @@
         send("set_k", parseInt(sliderK.value, 10));
     });
 
-    // Line length mode
-    function updateLineLenVisibility() {
-        lineLenGroup.style.display = selectLineMode.value === "fixed" ? "flex" : "none";
-    }
-    updateLineLenVisibility();
-
-    selectLineMode.addEventListener("change", () => {
-        send("set_line_mode", selectLineMode.value);
-        updateLineLenVisibility();
+    // Line length sliders — clamp min <= max
+    sliderMinLen.addEventListener("input", () => {
+        let min = parseFloat(sliderMinLen.value);
+        let max = parseFloat(sliderMaxLen.value);
+        if (min > max) {
+            sliderMaxLen.value = min;
+            valMaxLen.textContent = min.toFixed(1);
+            send("set_max_len", min);
+        }
+        valMinLen.textContent = min.toFixed(1);
+        send("set_min_len", min);
     });
 
-    sliderLineLen.addEventListener("input", () => {
-        valLineLen.textContent = parseFloat(sliderLineLen.value).toFixed(1);
-        send("set_line_len", parseFloat(sliderLineLen.value));
+    sliderMaxLen.addEventListener("input", () => {
+        let max = parseFloat(sliderMaxLen.value);
+        let min = parseFloat(sliderMinLen.value);
+        if (max < min) {
+            sliderMinLen.value = max;
+            valMinLen.textContent = max.toFixed(1);
+            send("set_min_len", max);
+        }
+        valMaxLen.textContent = max.toFixed(1);
+        send("set_max_len", max);
     });
 })();

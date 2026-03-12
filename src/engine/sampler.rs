@@ -1,14 +1,5 @@
 use crate::engine::canvas::LineSegment;
 
-/// Controls whether line lengths are randomized or fixed.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LineLengthMode {
-    /// Random length between min_len and max_len.
-    Random,
-    /// Fixed length (uses fixed_len field).
-    Fixed,
-}
-
 /// Trait for line sampling strategies.
 pub trait SamplingStrategy: Send + Sync {
     /// Generate a random line segment within the given canvas bounds.
@@ -19,15 +10,14 @@ pub trait SamplingStrategy: Send + Sync {
         stroke_width: f64,
         min_len: f64,
         max_len: f64,
-        length_mode: LineLengthMode,
-        fixed_len: f64,
     ) -> LineSegment;
 }
 
-fn resolve_length(min_len: f64, max_len: f64, mode: LineLengthMode, fixed_len: f64) -> f64 {
-    match mode {
-        LineLengthMode::Random => min_len + fastrand::f64() * (max_len - min_len),
-        LineLengthMode::Fixed => fixed_len,
+fn resolve_length(min_len: f64, max_len: f64) -> f64 {
+    if (max_len - min_len).abs() < 1e-9 {
+        min_len
+    } else {
+        min_len + fastrand::f64() * (max_len - min_len)
     }
 }
 
@@ -42,14 +32,12 @@ impl SamplingStrategy for UniformSampler {
         stroke_width: f64,
         min_len: f64,
         max_len: f64,
-        length_mode: LineLengthMode,
-        fixed_len: f64,
     ) -> LineSegment {
         let x1 = fastrand::f64() * canvas_width;
         let y1 = fastrand::f64() * canvas_height;
 
         let angle = fastrand::f64() * std::f64::consts::TAU;
-        let len = resolve_length(min_len, max_len, length_mode, fixed_len);
+        let len = resolve_length(min_len, max_len);
 
         let x2 = (x1 + angle.cos() * len).clamp(0.0, canvas_width);
         let y2 = (y1 + angle.sin() * len).clamp(0.0, canvas_height);
@@ -96,14 +84,12 @@ impl SamplingStrategy for BetaSampler {
         stroke_width: f64,
         min_len: f64,
         max_len: f64,
-        length_mode: LineLengthMode,
-        fixed_len: f64,
     ) -> LineSegment {
         let x1 = self.kumaraswamy_sample() * canvas_width;
         let y1 = self.kumaraswamy_sample() * canvas_height;
 
         let angle = fastrand::f64() * std::f64::consts::TAU;
-        let len = resolve_length(min_len, max_len, length_mode, fixed_len);
+        let len = resolve_length(min_len, max_len);
 
         let x2 = (x1 + angle.cos() * len).clamp(0.0, canvas_width);
         let y2 = (y1 + angle.sin() * len).clamp(0.0, canvas_height);
