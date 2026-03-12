@@ -1,0 +1,130 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    background: #111;
+    color: #ddd;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 0.75rem 1.5rem;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+}
+
+header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+#stats {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+    color: #999;
+}
+
+#stats strong {
+    color: #6f6;
+    font-weight: 500;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    overflow: auto;
+}
+
+.panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #1a1a1a;
+    border-radius: 6px;
+    border: 1px solid #333;
+    overflow: hidden;
+}
+
+.panel h2 {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #888;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #333;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.panel img {
+    width: 100%;
+    height: auto;
+    display: block;
+    image-rendering: pixelated;
+    background: #222;
+}
+
+.preview-panel img {
+    image-rendering: auto;
+}
+
+footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    background: #1a1a1a;
+    border-top: 1px solid #333;
+}
+
+.controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+button {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.4rem 1rem;
+    background: #333;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+button:hover { background: #444; }
+button:active { background: #555; }
+
+.sliders {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+.sliders label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #999;
+}
+
+.sliders input[type="range"] {
+    width: 120px;
+    accent-color: #6f6;
+}
+
+.sliders span {
+    min-width: 2rem;
+    color: #6f6;
+}

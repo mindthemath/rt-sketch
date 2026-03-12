@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rt-sketch</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <header>
+        <h1>rt-sketch</h1>
+        <div id="stats">
+            <span>iteration: <strong id="stat-iteration">0</strong></span>
+            <span>lines: <strong id="stat-lines">0</strong></span>
+            <span>MSE: <strong id="stat-score">-</strong></span>
+            <span>FPS: <strong id="stat-fps">-</strong></span>
+        </div>
+    </header>
+    <main>
+        <div class="panel">
+            <h2>target (processing res)</h2>
+            <img id="target-img" alt="target frame">
+        </div>
+        <div class="panel">
+            <h2>canvas (processing res)</h2>
+            <img id="canvas-img" alt="canvas at processing resolution">
+        </div>
+        <div class="panel preview-panel">
+            <h2>canvas preview (to-scale)</h2>
+            <img id="preview-img" alt="canvas at full scale">
+        </div>
+    </main>
+    <footer>
+        <div class="controls">
+            <button id="btn-start">Start</button>
+            <button id="btn-pause">Pause</button>
+            <button id="btn-resume">Resume</button>
+            <button id="btn-reset">Reset</button>
+        </div>
+        <div class="sliders">
+            <label>
+                K: <input type="range" id="slider-k" min="1" max="500" value="10">
+                <span id="val-k">10</span>
+            </label>
+        </div>
+    </footer>
+    <script src="/app.js"></script>
+</body>
+</html>
