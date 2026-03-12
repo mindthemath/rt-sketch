@@ -1,5 +1,7 @@
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 /// Probe the source to get its native width and height in pixels.
 /// Uses ffprobe to avoid decoding the whole stream.
@@ -90,9 +92,11 @@ fn probe_avfoundation_dimensions(device: &str) -> Option<(u32, u32)> {
 }
 
 /// Reads grayscale frames from an ffmpeg subprocess.
+/// A background thread continuously reads frames and stores the latest one,
+/// so the consumer always gets the most recent frame without lag.
 pub struct FrameSource {
-    child: Child,
-    frame_size: usize,
+    latest: Arc<Mutex<Option<Vec<u8>>>>,
+    _child: Arc<Mutex<Child>>,
     pub width: u32,
     pub height: u32,
 }
@@ -171,30 +175,50 @@ impl FrameSource {
 
         tracing::info!("spawning ffmpeg: {:?}", cmd);
 
-        let child = cmd.spawn().expect("failed to spawn ffmpeg — is it installed?");
+        let mut child = cmd.spawn().expect("failed to spawn ffmpeg — is it installed?");
+
+        let frame_size = (target_width * target_height) as usize;
+        let latest: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+
+        // Take stdout from child before moving it into the Arc
+        let mut stdout = child.stdout.take().expect("ffmpeg stdout not captured");
+
+        let child = Arc::new(Mutex::new(child));
+
+        // Background thread: continuously read frames, keeping only the latest
+        let latest_writer = Arc::clone(&latest);
+        thread::Builder::new()
+            .name("frame-reader".into())
+            .spawn(move || {
+                let mut buf = vec![0u8; frame_size];
+                loop {
+                    match stdout.read_exact(&mut buf) {
+                        Ok(()) => {
+                            let mut slot = latest_writer.lock().unwrap();
+                            *slot = Some(buf.clone());
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
+            .expect("failed to spawn frame reader thread");
 
         Self {
-            child,
-            frame_size: (target_width * target_height) as usize,
+            latest,
+            _child: child,
             width: target_width,
             height: target_height,
         }
     }
 
-    /// Read the next frame. Returns None if the stream has ended.
+    /// Get the most recent frame. Returns None if no frame has been read yet.
     pub fn next_frame(&mut self) -> Option<Vec<u8>> {
-        let mut buf = vec![0u8; self.frame_size];
-        let stdout = self.child.stdout.as_mut()?;
-
-        match stdout.read_exact(&mut buf) {
-            Ok(()) => Some(buf),
-            Err(_) => None,
-        }
+        self.latest.lock().unwrap().take()
     }
 }
 
 impl Drop for FrameSource {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        let _ = self._child.lock().unwrap().kill();
     }
 }
