@@ -14,7 +14,7 @@ run: build
 
 ## run-image: Run with a static test image
 run-image: build
-	./target/release/rt-sketch --source image:$(IMAGE)
+	./target/release/rt-sketch --source image:$(IMAGE) --canvas-height 15 --canvas-width 15
 
 ## dev: Run in debug mode with a test image
 dev:
