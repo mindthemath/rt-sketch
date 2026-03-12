@@ -27,19 +27,15 @@ header h1 {
 #stats {
     flex: 1;
     display: flex;
-    gap: 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
     font-size: 0.85rem;
     color: #999;
 }
 
 #btn-export {
     margin-left: auto;
-}
-
-.stat-bar-container {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    white-space: nowrap;
 }
 
 .stat-bar {
