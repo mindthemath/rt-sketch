@@ -18,7 +18,10 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
                     format!("/dev/video{}", device)
                 }
             } else if cfg!(target_os = "macos") {
-                return probe_avfoundation_dimensions(device);
+                // We capture at 640x480, so just return that directly.
+                // Avoids grabbing the camera during probe (which can
+                // interfere with the main capture).
+                return Some((640, 480));
             } else {
                 return None;
             }
