@@ -17,11 +17,11 @@ pub struct Args {
     pub resolution: u32,
 
     /// Canvas width in cm
-    #[arg(long, default_value_t = 30.0)]
+    #[arg(long, default_value_t = 10.0)]
     pub canvas_width: f64,
 
     /// Canvas height in cm
-    #[arg(long, default_value_t = 20.0)]
+    #[arg(long, default_value_t = 10.0)]
     pub canvas_height: f64,
 
     /// Pixels per inch for web preview rendering
