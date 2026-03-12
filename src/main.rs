@@ -309,8 +309,8 @@ fn engine_loop(
         let canvas_raster = engine.canvas.rasterize(pw, ph);
         let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
 
-        // Only generate the expensive full-res preview every 10 iterations
-        let preview_b64 = if iteration % 10 == 0 {
+        // Only generate the expensive full-res preview every 5 iterations
+        let preview_b64 = if iteration % 5 == 0 {
             let preview_png = engine.canvas.rasterize_png(preview_w, preview_h);
             Some(base64::engine::general_purpose::STANDARD.encode(&preview_png))
         } else {
