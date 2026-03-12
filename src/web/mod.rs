@@ -103,10 +103,16 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
         let score = *state.current_score.lock().unwrap();
         let line_count = state.canvas.lock().unwrap().lines.len();
 
+        let target_png = state.target_frame.lock().unwrap().as_ref().map(|frame| {
+            let pw = config.processing_width();
+            let ph = config.resolution;
+            gray_to_base64_png(frame, pw, ph)
+        });
+
         let init = UpdateMessage {
             msg_type: "init".to_string(),
             canvas_png: None,
-            target_png: None,
+            target_png: target_png,
             preview_png: None,
             iteration: Some(iteration),
             score: Some(score),

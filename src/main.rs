@@ -153,8 +153,19 @@ fn engine_loop(
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
                     *state.running.lock().unwrap() = false;
-                    // Update shared canvas
                     *state.canvas.lock().unwrap() = engine.canvas.clone();
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "reset".to_string(),
+                        canvas_png: None,
+                        target_png: None,
+                        preview_png: None,
+                        iteration: Some(0),
+                        score: Some(1.0),
+                        fps: None,
+                        k: None,
+                        line_count: Some(0),
+                        running: Some(false),
+                    });
                     tracing::info!("engine reset");
                 }
                 "set_k" => {

@@ -27,6 +27,12 @@
         placeholder.style.display = "none";
     }
 
+    function hideImg(img, placeholder) {
+        img.style.display = "none";
+        img.removeAttribute("src");
+        placeholder.style.display = "flex";
+    }
+
     // FPS tracking
     let lastUpdateTime = performance.now();
     let frameCount = 0;
@@ -46,6 +52,12 @@
 
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
+
+        if (msg.type === "reset") {
+            hideImg(canvasImg, canvasPlaceholder);
+            hideImg(previewImg, previewPlaceholder);
+            statFps.textContent = "-";
+        }
 
         if (msg.canvas_png) {
             canvasImg.src = "data:image/png;base64," + msg.canvas_png;
