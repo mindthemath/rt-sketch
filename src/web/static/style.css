@@ -12,24 +12,32 @@ body {
 header {
     display: flex;
     align-items: center;
-    gap: 2rem;
-    padding: 0.75rem 1.5rem;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
     background: #1a1a1a;
     border-bottom: 1px solid #333;
+    overflow: hidden;
 }
 
 header h1 {
     font-size: 1.1rem;
     font-weight: 600;
     color: #fff;
+    white-space: nowrap;
 }
 
 #stats {
     flex: 1;
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
     font-size: 0.85rem;
     color: #999;
+    min-width: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 600px) {
+    header h1 { display: none; }
 }
 
 .stat {
