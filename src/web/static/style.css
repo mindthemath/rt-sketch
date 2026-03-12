@@ -34,17 +34,15 @@ header h1 {
     color: #999;
     min-width: 0;
     overflow-x: auto;
-    scrollbar-width: thin;
+    scrollbar-width: none;
 }
 
-#btn-export .btn-label { display: inline; }
-#btn-export .btn-icon { display: none; }
+#stats::-webkit-scrollbar {
+    display: none;
+}
 
 @media (max-width: 600px) {
     header h1 { display: none; }
-    #btn-export { padding: 0.4rem 0.6rem; }
-    #btn-export .btn-label { display: none; }
-    #btn-export .btn-icon { display: inline; }
 }
 
 .stat {
