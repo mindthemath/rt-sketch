@@ -14,8 +14,6 @@ pub struct StepResult {
     pub winning_line: Option<LineSegment>,
     /// MSE score after this step.
     pub score: f64,
-    /// Number of proposals evaluated.
-    pub proposals_evaluated: usize,
 }
 
 /// The proposal engine: generates K proposals, scores them, picks the best.
@@ -98,13 +96,11 @@ impl ProposalEngine {
             StepResult {
                 winning_line: Some(winning_line),
                 score: best_score,
-                proposals_evaluated: k,
             }
         } else {
             StepResult {
                 winning_line: None,
                 score: current_score,
-                proposals_evaluated: k,
             }
         }
     }

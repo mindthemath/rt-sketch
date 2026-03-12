@@ -101,6 +101,9 @@
     document.getElementById("btn-pause").addEventListener("click", () => send("pause"));
     document.getElementById("btn-resume").addEventListener("click", () => send("resume"));
     document.getElementById("btn-reset").addEventListener("click", () => send("reset"));
+    document.getElementById("btn-export").addEventListener("click", () => {
+        window.open("/svg", "_blank");
+    });
 
     sliderK.addEventListener("input", () => {
         valK.textContent = sliderK.value;

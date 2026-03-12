@@ -67,6 +67,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/app.js", get(js_handler))
         .route("/style.css", get(css_handler))
         .route("/ws", get(ws_handler))
+        .route("/svg", get(svg_handler))
         .with_state(state)
 }
 
@@ -86,6 +87,18 @@ async fn css_handler() -> Response {
     (
         [("content-type", "text/css")],
         include_str!("static/style.css"),
+    )
+        .into_response()
+}
+
+async fn svg_handler(State(state): State<Arc<AppState>>) -> Response {
+    let svg = state.canvas.lock().unwrap().to_svg();
+    (
+        [
+            ("content-type", "image/svg+xml"),
+            ("content-disposition", "attachment; filename=\"rt-sketch.svg\""),
+        ],
+        svg,
     )
         .into_response()
 }
