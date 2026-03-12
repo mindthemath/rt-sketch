@@ -163,8 +163,14 @@ impl FrameSource {
         }
 
         // Output: scaled grayscale raw frames
+        // For live sources, limit output fps to reduce CPU overhead —
+        // the algorithm doesn't need 30 target frames per second.
+        let vf = match &spec {
+            SourceSpec::Image(_) => format!("scale={}:{}", target_width, target_height),
+            _ => format!("fps={},scale={}:{}", fps, target_width, target_height),
+        };
         cmd.arg("-vf")
-            .arg(format!("scale={}:{}", target_width, target_height))
+            .arg(vf)
             .arg("-pix_fmt")
             .arg("gray")
             .arg("-f")
