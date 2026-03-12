@@ -15,8 +15,9 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
                 } else {
                     format!("/dev/video{}", device)
                 }
+            } else if cfg!(target_os = "macos") {
+                return probe_avfoundation_dimensions(device);
             } else {
-                // On macOS avfoundation, ffprobe doesn't work well; skip probing
                 return None;
             }
         }
@@ -48,6 +49,44 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
     } else {
         None
     }
+}
+
+/// Probe macOS avfoundation webcam dimensions by running ffmpeg briefly.
+fn probe_avfoundation_dimensions(device: &str) -> Option<(u32, u32)> {
+    // Run ffmpeg for a single frame and parse resolution from stderr
+    let output = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-f", "avfoundation",
+            "-framerate", "30",
+            "-pixel_format", "nv12",
+            "-i", &format!("{}:", device),
+            "-frames:v", "1",
+            "-f", "null", "-",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .ok()?;
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Look for pattern like "1280x720" in the stream info line
+    for line in stderr.lines() {
+        if line.contains("Video:") {
+            // Match WxH pattern (e.g. "1280x720")
+            for part in line.split([' ', ',']) {
+                let dims: Vec<&str> = part.split('x').collect();
+                if dims.len() == 2 {
+                    if let (Ok(w), Ok(h)) = (dims[0].parse::<u32>(), dims[1].parse::<u32>()) {
+                        if w > 0 && h > 0 && w < 10000 && h < 10000 {
+                            return Some((w, h));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Reads grayscale frames from an ffmpeg subprocess.
