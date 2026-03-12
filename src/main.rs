@@ -179,11 +179,16 @@ fn engine_loop(
                 }
                 "pause" => {
                     *state.running.lock().unwrap() = false;
+                    // Send final preview so the UI shows the latest canvas state
+                    let canvas_raster = engine.canvas.rasterize(pw, ph);
+                    let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
+                    let preview_png = engine.canvas.rasterize_png(preview_w, preview_h);
+                    let preview_b64 = base64::engine::general_purpose::STANDARD.encode(&preview_png);
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
-                        canvas_png: None,
+                        canvas_png: Some(canvas_b64),
                         target_png: None,
-                        preview_png: None,
+                        preview_png: Some(preview_b64),
                         iteration: None,
                         score: None,
                         fps: None,
