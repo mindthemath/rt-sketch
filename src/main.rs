@@ -150,10 +150,34 @@ fn engine_loop(
             match cmd.command.as_str() {
                 "start" | "resume" => {
                     *state.running.lock().unwrap() = true;
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        canvas_png: None,
+                        target_png: None,
+                        preview_png: None,
+                        iteration: None,
+                        score: None,
+                        fps: None,
+                        k: None,
+                        line_count: None,
+                        running: Some(true),
+                    });
                     tracing::info!("engine started/resumed");
                 }
                 "pause" => {
                     *state.running.lock().unwrap() = false;
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        canvas_png: None,
+                        target_png: None,
+                        preview_png: None,
+                        iteration: None,
+                        score: None,
+                        fps: None,
+                        k: None,
+                        line_count: None,
+                        running: Some(false),
+                    });
                     tracing::info!("engine paused");
                 }
                 "reset" => {
