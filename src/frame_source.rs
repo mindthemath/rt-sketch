@@ -108,7 +108,9 @@ impl FrameSource {
                     };
                     cmd.arg("-f").arg("v4l2").arg("-i").arg(dev);
                 } else if cfg!(target_os = "macos") {
-                    cmd.arg("-f").arg("avfoundation").arg("-i").arg(format!("{}:", device));
+                    cmd.arg("-f").arg("avfoundation")
+                        .arg("-framerate").arg("30")
+                        .arg("-i").arg(format!("{}:", device));
                 }
             }
             SourceSpec::Video(path) => {
