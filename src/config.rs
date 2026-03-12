@@ -59,6 +59,10 @@ pub struct Args {
     /// Overshoot penalty (asymmetric MSE alpha). 1.0 = standard MSE, >1 penalizes ink on whitespace.
     #[arg(long, default_value_t = 2.0)]
     pub alpha: f64,
+
+    /// Gamma correction for target image. <1 brightens, >1 darkens, 1.0 = no change.
+    #[arg(long, default_value_t = 1.0)]
+    pub gamma: f64,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.
@@ -75,6 +79,7 @@ pub struct Config {
     pub min_line_len_cm: f64,
     pub max_line_len_cm: f64,
     pub alpha: f64,
+    pub gamma: f64,
 }
 
 impl Config {
@@ -91,6 +96,7 @@ impl Config {
             min_line_len_cm: args.min_line_len,
             max_line_len_cm: args.max_line_len,
             alpha: args.alpha,
+            gamma: args.gamma,
         }
     }
 

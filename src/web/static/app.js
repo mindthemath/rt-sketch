@@ -25,6 +25,8 @@
     const valMaxLen = document.getElementById("val-max-len");
     const sliderAlpha = document.getElementById("slider-alpha");
     const valAlpha = document.getElementById("val-alpha");
+    const sliderGamma = document.getElementById("slider-gamma");
+    const valGamma = document.getElementById("val-gamma");
 
     function showImg(img, placeholder) {
         img.style.display = "block";
@@ -171,5 +173,10 @@
     sliderAlpha.addEventListener("input", () => {
         valAlpha.textContent = parseInt(sliderAlpha.value, 10);
         send("set_alpha", parseFloat(sliderAlpha.value));
+    });
+
+    sliderGamma.addEventListener("input", () => {
+        valGamma.textContent = parseFloat(sliderGamma.value).toFixed(1);
+        send("set_gamma", parseFloat(sliderGamma.value));
     });
 })();
