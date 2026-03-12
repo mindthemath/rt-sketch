@@ -142,29 +142,47 @@ main {
 
 footer {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: #1a1a1a;
     border-top: 1px solid #333;
     font-size: 0.85rem;
 }
 
-footer label {
+.footer-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.footer-buttons button {
+    flex: 1;
+}
+
+.footer-sliders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+}
+
+.footer-sliders label {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     color: #999;
     white-space: nowrap;
+    flex: 1;
+    min-width: 0;
 }
 
-footer label span {
+.footer-sliders label span {
     min-width: 1.8rem;
     color: #6f6;
 }
 
-footer input[type="range"] {
-    width: 80px;
+.footer-sliders input[type="range"] {
+    flex: 1;
+    min-width: 40px;
     accent-color: #6f6;
 }
 
