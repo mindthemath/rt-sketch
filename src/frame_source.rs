@@ -1,6 +1,55 @@
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 
+/// Probe the source to get its native width and height in pixels.
+/// Uses ffprobe to avoid decoding the whole stream.
+pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
+    let spec = SourceSpec::parse(source);
+
+    let input_path = match &spec {
+        SourceSpec::Image(path) | SourceSpec::Video(path) => path.clone(),
+        SourceSpec::Webcam(device) => {
+            if cfg!(target_os = "linux") {
+                if device.starts_with("/dev/") {
+                    device.clone()
+                } else {
+                    format!("/dev/video{}", device)
+                }
+            } else {
+                // On macOS avfoundation, ffprobe doesn't work well; skip probing
+                return None;
+            }
+        }
+    };
+
+    let mut cmd = Command::new("ffprobe");
+    cmd.args([
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "csv=s=x:p=0",
+    ]);
+
+    // For webcam on linux, need to specify format
+    if matches!(&spec, SourceSpec::Webcam(_)) && cfg!(target_os = "linux") {
+        cmd.args(["-f", "v4l2"]);
+    }
+
+    cmd.arg(&input_path);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    let output = cmd.output().ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let parts: Vec<&str> = text.trim().split('x').collect();
+    if parts.len() == 2 {
+        let w = parts[0].parse::<u32>().ok()?;
+        let h = parts[1].parse::<u32>().ok()?;
+        Some((w, h))
+    } else {
+        None
+    }
+}
+
 /// Reads grayscale frames from an ffmpeg subprocess.
 pub struct FrameSource {
     child: Child,

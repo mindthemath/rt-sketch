@@ -27,10 +27,18 @@ async fn main() {
         .init();
 
     let args = Args::parse();
-    let config = Config::from_args(&args);
+    let mut config = Config::from_args(&args);
+
+    // Probe source to fit canvas to its aspect ratio
+    if let Some((sw, sh)) = frame_source::probe_source_dimensions(&args.source) {
+        tracing::info!("source dimensions: {}x{} px", sw, sh);
+        config.fit_to_source(sw, sh);
+    } else {
+        tracing::warn!("could not probe source dimensions, using canvas aspect ratio as-is");
+    }
 
     tracing::info!(
-        "canvas: {}x{} cm, processing: {}x{} px, preview: {}x{} px ({}ppi)",
+        "canvas: {:.1}x{:.1} cm, processing: {}x{} px, preview: {}x{} px ({}ppi)",
         config.canvas_width_cm,
         config.canvas_height_cm,
         config.processing_width(),

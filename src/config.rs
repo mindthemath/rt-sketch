@@ -88,6 +88,21 @@ impl Config {
         }
     }
 
+    /// Adjust canvas dimensions to fit the source aspect ratio within the
+    /// current width/height bounding box.
+    pub fn fit_to_source(&mut self, source_width: u32, source_height: u32) {
+        let source_aspect = source_width as f64 / source_height as f64;
+        let box_aspect = self.canvas_width_cm / self.canvas_height_cm;
+
+        if source_aspect > box_aspect {
+            // Source is wider — fit to width, shrink height
+            self.canvas_height_cm = self.canvas_width_cm / source_aspect;
+        } else {
+            // Source is taller — fit to height, shrink width
+            self.canvas_width_cm = self.canvas_height_cm * source_aspect;
+        }
+    }
+
     /// Processing resolution width, derived from height and canvas aspect ratio.
     pub fn processing_width(&self) -> u32 {
         let aspect = self.canvas_width_cm / self.canvas_height_cm;

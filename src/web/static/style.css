@@ -79,6 +79,16 @@ main {
     image-rendering: auto;
 }
 
+.panel-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.panel-row .panel {
+    flex: 1;
+    min-width: 0;
+}
+
 .placeholder {
     display: flex;
     align-items: center;
