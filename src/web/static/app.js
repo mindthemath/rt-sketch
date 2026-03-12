@@ -15,6 +15,7 @@
     const statFps = document.getElementById("stat-fps");
     const statLastLen = document.getElementById("stat-last-len");
     const statLastBar = document.getElementById("stat-last-bar");
+    const statTotal = document.getElementById("stat-total");
 
     const sliderK = document.getElementById("slider-k");
     const valK = document.getElementById("val-k");
@@ -116,6 +117,9 @@
             const pct = max > min ? ((msg.last_line_len - min) / (max - min)) * 100 : 50;
             statLastBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
         }
+        if (msg.total_length !== undefined && msg.total_length !== null) {
+            statTotal.textContent = msg.total_length.toFixed(1);
+        }
     };
 
     ws.onclose = () => {
@@ -128,11 +132,20 @@
         }
     }
 
-    btnToggle.addEventListener("click", () => {
+    function togglePlayPause() {
         if (isRunning) {
             send("pause");
         } else {
             send(hasStarted ? "resume" : "start");
+        }
+    }
+
+    btnToggle.addEventListener("click", togglePlayPause);
+
+    document.addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+            e.preventDefault();
+            togglePlayPause();
         }
     });
     document.getElementById("btn-reset").addEventListener("click", () => send("reset"));

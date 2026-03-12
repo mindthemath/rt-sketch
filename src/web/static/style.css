@@ -50,6 +50,7 @@ header h1 {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
+    white-space: nowrap;
 }
 
 .stat label {
@@ -67,6 +68,7 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 0.3rem;
+    white-space: nowrap;
 }
 
 #btn-export {
@@ -138,7 +140,7 @@ main {
 
 .target-img-wrapper img,
 .target-img-wrapper .placeholder {
-    width: var(--target-size, 100%);
+    width: var(--target-size, 50%);
     transition: width 0.15s;
 }
 

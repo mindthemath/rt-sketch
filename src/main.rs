@@ -168,6 +168,7 @@ fn engine_loop(
         line_count: None,
         running: None,
         last_line_len: None,
+        total_length: None,
     });
 
     let mut engine = ProposalEngine::new(&config);
@@ -199,6 +200,7 @@ fn engine_loop(
                         line_count: None,
                         running: Some(true),
                         last_line_len: None,
+                        total_length: None,
                     });
                     tracing::info!("engine started/resumed");
                 }
@@ -222,6 +224,7 @@ fn engine_loop(
                         line_count: None,
                         running: Some(false),
                         last_line_len: None,
+                        total_length: None,
                     });
                     tracing::info!("engine paused");
                 }
@@ -243,6 +246,7 @@ fn engine_loop(
                         line_count: Some(0),
                         running: Some(false),
                         last_line_len: None,
+                        total_length: Some(0.0),
                     });
                     tracing::info!("engine reset");
                 }
@@ -315,6 +319,7 @@ fn engine_loop(
                     line_count: None,
                     running: None,
                     last_line_len: None,
+                    total_length: None,
                 });
             }
             std::thread::sleep(Duration::from_millis(50));
@@ -360,6 +365,7 @@ fn engine_loop(
             None
         };
 
+        let total_length: f64 = engine.canvas.lines.iter().map(|l| l.length()).sum();
         let _ = state.update_tx.send(UpdateMessage {
             msg_type: "update".to_string(),
             canvas_png: Some(canvas_b64),
@@ -372,6 +378,7 @@ fn engine_loop(
             line_count: Some(engine.canvas.lines.len()),
             running: Some(true),
             last_line_len: result.winning_line.map(|l| l.length()),
+            total_length: Some(total_length),
         });
 
         // Frame pacing

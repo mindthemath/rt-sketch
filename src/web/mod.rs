@@ -53,6 +53,8 @@ pub struct UpdateMessage {
     pub running: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_line_len: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_length: Option<f64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -130,6 +132,10 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
             gray_to_base64_png(frame, pw, ph)
         });
 
+        let canvas = state.canvas.lock().unwrap();
+        let total_length: f64 = canvas.lines.iter().map(|l| l.length()).sum();
+        drop(canvas);
+
         let init = UpdateMessage {
             msg_type: "init".to_string(),
             canvas_png: None,
@@ -142,6 +148,7 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
             line_count: Some(line_count),
             running: Some(running),
             last_line_len: None,
+            total_length: Some(total_length),
         };
 
         serde_json::to_string(&init).ok()
