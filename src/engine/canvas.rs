@@ -11,6 +11,14 @@ pub struct LineSegment {
     pub width: f64,
 }
 
+impl LineSegment {
+    pub fn length(&self) -> f64 {
+        let dx = self.x2 - self.x1;
+        let dy = self.y2 - self.y1;
+        (dx * dx + dy * dy).sqrt()
+    }
+}
+
 /// The canvas: a collection of line segments drawn on a white background.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Canvas {

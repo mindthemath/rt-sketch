@@ -135,6 +135,7 @@ fn engine_loop(
         k: None,
         line_count: None,
         running: None,
+        last_line_len: None,
     });
 
     let mut engine = ProposalEngine::new(&config);
@@ -161,6 +162,7 @@ fn engine_loop(
                         k: None,
                         line_count: None,
                         running: Some(true),
+                        last_line_len: None,
                     });
                     tracing::info!("engine started/resumed");
                 }
@@ -177,6 +179,7 @@ fn engine_loop(
                         k: None,
                         line_count: None,
                         running: Some(false),
+                        last_line_len: None,
                     });
                     tracing::info!("engine paused");
                 }
@@ -197,6 +200,7 @@ fn engine_loop(
                         k: None,
                         line_count: Some(0),
                         running: Some(false),
+                        last_line_len: None,
                     });
                     tracing::info!("engine reset");
                 }
@@ -291,6 +295,7 @@ fn engine_loop(
             k: Some(current_k),
             line_count: Some(engine.canvas.lines.len()),
             running: Some(true),
+            last_line_len: result.winning_line.map(|l| l.length()),
         });
 
         // Frame pacing

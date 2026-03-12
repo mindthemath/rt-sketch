@@ -12,9 +12,11 @@
         <div id="stats">
             <span>iteration: <strong id="stat-iteration">0</strong></span>
             <span>lines: <strong id="stat-lines">0</strong></span>
+            <span class="stat-bar-container">last: <span class="stat-bar"><span class="stat-bar-fill" id="stat-last-bar"></span></span> <strong id="stat-last-len">-</strong> cm</span>
             <span>MSE: <strong id="stat-score">-</strong></span>
             <span>FPS: <strong id="stat-fps">-</strong></span>
         </div>
+        <button id="btn-export">Export SVG</button>
     </header>
     <main>
         <div class="panel">
@@ -39,7 +41,6 @@
         <div class="controls">
             <button id="btn-toggle">Start</button>
             <button id="btn-reset">Reset</button>
-            <button id="btn-export">Export SVG</button>
         </div>
         <div class="sliders">
             <label>

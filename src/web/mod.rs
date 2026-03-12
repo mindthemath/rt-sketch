@@ -51,6 +51,8 @@ pub struct UpdateMessage {
     pub line_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_line_len: Option<f64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -133,6 +135,7 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
             k: Some(config.k),
             line_count: Some(line_count),
             running: Some(running),
+            last_line_len: None,
         };
 
         serde_json::to_string(&init).ok()

@@ -25,10 +25,38 @@ header h1 {
 }
 
 #stats {
+    flex: 1;
     display: flex;
     gap: 1.5rem;
     font-size: 0.85rem;
     color: #999;
+}
+
+#btn-export {
+    margin-left: auto;
+}
+
+.stat-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.stat-bar {
+    display: inline-block;
+    width: 3rem;
+    height: 0.6rem;
+    background: #333;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.stat-bar-fill {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: #6f6;
+    transition: width 0.1s;
 }
 
 #stats strong {

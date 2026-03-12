@@ -13,6 +13,8 @@
     const statLines = document.getElementById("stat-lines");
     const statScore = document.getElementById("stat-score");
     const statFps = document.getElementById("stat-fps");
+    const statLastLen = document.getElementById("stat-last-len");
+    const statLastBar = document.getElementById("stat-last-bar");
 
     const sliderK = document.getElementById("slider-k");
     const valK = document.getElementById("val-k");
@@ -73,6 +75,8 @@
             hideImg(canvasImg, canvasPlaceholder);
             hideImg(previewImg, previewPlaceholder);
             statFps.textContent = "-";
+            statLastLen.textContent = "-";
+            statLastBar.style.width = "0%";
             hasStarted = false;
             updateToggleButton();
         }
@@ -102,6 +106,13 @@
         if (msg.k !== undefined && msg.k !== null) {
             sliderK.value = msg.k;
             valK.textContent = msg.k;
+        }
+        if (msg.last_line_len !== undefined && msg.last_line_len !== null) {
+            statLastLen.textContent = msg.last_line_len.toFixed(2);
+            const min = parseFloat(sliderMinLen.value);
+            const max = parseFloat(sliderMaxLen.value);
+            const pct = max > min ? ((msg.last_line_len - min) / (max - min)) * 100 : 50;
+            statLastBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
         }
     };
 
