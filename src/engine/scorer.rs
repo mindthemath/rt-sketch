@@ -12,7 +12,11 @@ pub fn asymmetric_mse(canvas: &[u8], target: &[u8], alpha: f64) -> f64 {
             let diff = cv as f64 - tv as f64;
             let sq = diff * diff;
             // diff < 0 means canvas is darker than target (overshoot)
-            if diff < 0.0 { sq * alpha } else { sq }
+            if diff < 0.0 {
+                sq * alpha
+            } else {
+                sq
+            }
         })
         .sum();
 

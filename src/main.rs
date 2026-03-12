@@ -208,7 +208,8 @@ fn engine_loop(
                     let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
                     let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
                     let preview_png = engine.preview_png();
-                    let preview_b64 = base64::engine::general_purpose::STANDARD.encode(&preview_png);
+                    let preview_b64 =
+                        base64::engine::general_purpose::STANDARD.encode(&preview_png);
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
                         canvas_png: Some(canvas_b64),

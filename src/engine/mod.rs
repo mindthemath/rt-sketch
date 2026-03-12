@@ -78,14 +78,11 @@ impl ProposalEngine {
         &self.cached_pixmap
     }
 
-    /// Get the cached preview pixmap (current canvas at full resolution).
-    pub fn preview_pixmap(&self) -> &Pixmap {
-        &self.preview_pixmap
-    }
-
     /// Encode the cached preview pixmap as a PNG.
     pub fn preview_png(&self) -> Vec<u8> {
-        self.preview_pixmap.encode_png().expect("PNG encoding should work")
+        self.preview_pixmap
+            .encode_png()
+            .expect("PNG encoding should work")
     }
 
     /// Run one step: generate K proposals, score each, keep the best.

@@ -34,11 +34,11 @@ pub struct UpdateMessage {
     #[serde(rename = "type")]
     pub msg_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub canvas_png: Option<String>,     // base64
+    pub canvas_png: Option<String>, // base64
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_png: Option<String>,     // base64
+    pub target_png: Option<String>, // base64
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_png: Option<String>,    // base64, full-res preview
+    pub preview_png: Option<String>, // base64, full-res preview
     #[serde(skip_serializing_if = "Option::is_none")]
     pub iteration: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -178,8 +178,8 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
 
 /// Encode a grayscale buffer as a PNG, then base64-encode it.
 pub fn gray_to_base64_png(data: &[u8], width: u32, height: u32) -> String {
-    let img = image::GrayImage::from_raw(width, height, data.to_vec())
-        .expect("valid image dimensions");
+    let img =
+        image::GrayImage::from_raw(width, height, data.to_vec()).expect("valid image dimensions");
     let mut buf = std::io::Cursor::new(Vec::new());
     img.write_to(&mut buf, image::ImageFormat::Png)
         .expect("PNG encoding");
