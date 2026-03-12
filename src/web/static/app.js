@@ -21,6 +21,8 @@
     const valMinLen = document.getElementById("val-min-len");
     const sliderMaxLen = document.getElementById("slider-max-len");
     const valMaxLen = document.getElementById("val-max-len");
+    const sliderAlpha = document.getElementById("slider-alpha");
+    const valAlpha = document.getElementById("val-alpha");
 
     function showImg(img, placeholder) {
         img.style.display = "block";
@@ -153,5 +155,10 @@
         }
         valMaxLen.textContent = max.toFixed(1);
         send("set_max_len", max);
+    });
+
+    sliderAlpha.addEventListener("input", () => {
+        valAlpha.textContent = parseFloat(sliderAlpha.value).toFixed(1);
+        send("set_overshoot_alpha", parseFloat(sliderAlpha.value));
     });
 })();

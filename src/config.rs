@@ -55,6 +55,10 @@ pub struct Args {
     /// Maximum line length in cm
     #[arg(long, default_value_t = 5.0)]
     pub max_line_len: f64,
+
+    /// Overshoot penalty (asymmetric MSE alpha). 1.0 = standard MSE, >1 penalizes ink on whitespace.
+    #[arg(long, default_value_t = 2.0)]
+    pub overshoot_alpha: f64,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.
@@ -70,6 +74,7 @@ pub struct Config {
     pub stroke_width_cm: f64,
     pub min_line_len_cm: f64,
     pub max_line_len_cm: f64,
+    pub overshoot_alpha: f64,
 }
 
 impl Config {
@@ -85,6 +90,7 @@ impl Config {
             stroke_width_cm: args.stroke_width,
             min_line_len_cm: args.min_line_len,
             max_line_len_cm: args.max_line_len,
+            overshoot_alpha: args.overshoot_alpha,
         }
     }
 

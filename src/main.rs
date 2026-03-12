@@ -224,6 +224,12 @@ fn engine_loop(
                         tracing::info!("max line length set to {} cm", v);
                     }
                 }
+                "set_overshoot_alpha" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_f64()) {
+                        engine.overshoot_alpha = v;
+                        tracing::info!("overshoot alpha set to {}", v);
+                    }
+                }
                 _ => {}
             }
         }
