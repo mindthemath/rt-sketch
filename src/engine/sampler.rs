@@ -1,31 +1,78 @@
 use crate::engine::canvas::LineSegment;
 
-/// Trait for line sampling strategies.
-pub trait SamplingStrategy: Send + Sync {
-    /// Generate a random line segment within the given canvas bounds.
-    fn sample(
-        &self,
-        canvas_width: f64,
-        canvas_height: f64,
-        stroke_width: f64,
-        min_len: f64,
-        max_len: f64,
-    ) -> LineSegment;
+/// A distribution that produces values in [0, 1].
+#[derive(Debug, Clone)]
+pub enum Distribution {
+    Uniform,
+    Beta { alpha: f64, beta: f64 },
 }
 
-fn resolve_length(min_len: f64, max_len: f64) -> f64 {
-    if (max_len - min_len).abs() < 1e-9 {
-        min_len
-    } else {
-        min_len + fastrand::f64() * (max_len - min_len)
+impl Distribution {
+    /// Sample a value in [0, 1].
+    pub fn sample(&self) -> f64 {
+        match self {
+            Distribution::Uniform => fastrand::f64(),
+            Distribution::Beta { alpha, beta } => {
+                let u: f64 = fastrand::f64().max(1e-10);
+                (1.0 - (1.0 - u.powf(1.0 / beta)).powf(1.0 / alpha)).clamp(0.0, 1.0)
+            }
+        }
+    }
+
+    /// Parse a distribution spec: preset name or "beta:a,b".
+    pub fn parse(spec: &str) -> Result<Self, String> {
+        match spec {
+            "uniform" => Ok(Distribution::Uniform),
+            "center" => Ok(Distribution::Beta {
+                alpha: 2.0,
+                beta: 2.0,
+            }),
+            "edges" => Ok(Distribution::Beta {
+                alpha: 0.5,
+                beta: 0.5,
+            }),
+            "low" => Ok(Distribution::Beta {
+                alpha: 2.0,
+                beta: 5.0,
+            }),
+            "high" => Ok(Distribution::Beta {
+                alpha: 5.0,
+                beta: 2.0,
+            }),
+            s if s.starts_with("beta:") => {
+                let params = &s[5..];
+                let parts: Vec<&str> = params.split(',').collect();
+                if parts.len() != 2 {
+                    return Err(format!("expected beta:a,b, got {}", s));
+                }
+                let a = parts[0]
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|e| format!("bad alpha: {}", e))?;
+                let b = parts[1]
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|e| format!("bad beta: {}", e))?;
+                Ok(Distribution::Beta { alpha: a, beta: b })
+            }
+            _ => Err(format!("unknown distribution: {}", spec)),
+        }
     }
 }
 
-/// Uniform random sampling: all positions and angles equally likely.
-pub struct UniformSampler;
+/// Sampler that generates line segments with independent distributions for x, y, and length.
+pub struct LineSampler {
+    pub x: Distribution,
+    pub y: Distribution,
+    pub length: Distribution,
+}
 
-impl SamplingStrategy for UniformSampler {
-    fn sample(
+impl LineSampler {
+    pub fn new(x: Distribution, y: Distribution, length: Distribution) -> Self {
+        Self { x, y, length }
+    }
+
+    pub fn sample(
         &self,
         canvas_width: f64,
         canvas_height: f64,
@@ -33,11 +80,15 @@ impl SamplingStrategy for UniformSampler {
         min_len: f64,
         max_len: f64,
     ) -> LineSegment {
-        let x1 = fastrand::f64() * canvas_width;
-        let y1 = fastrand::f64() * canvas_height;
+        let x1 = self.x.sample() * canvas_width;
+        let y1 = self.y.sample() * canvas_height;
 
         let angle = fastrand::f64() * std::f64::consts::TAU;
-        let len = resolve_length(min_len, max_len);
+        let len = if (max_len - min_len).abs() < 1e-9 {
+            min_len
+        } else {
+            min_len + self.length.sample() * (max_len - min_len)
+        };
 
         let x2 = (x1 + angle.cos() * len).clamp(0.0, canvas_width);
         let y2 = (y1 + angle.sin() * len).clamp(0.0, canvas_height);
@@ -49,65 +100,5 @@ impl SamplingStrategy for UniformSampler {
             y2,
             width: stroke_width,
         }
-    }
-}
-
-/// Beta distribution sampling: biases toward configurable regions.
-/// Uses the Kumaraswamy distribution as an approximation (no external dep needed).
-/// alpha < 1, beta < 1 → biased toward edges
-/// alpha > 1, beta > 1 → biased toward center
-pub struct BetaSampler {
-    pub alpha: f64,
-    pub beta: f64,
-}
-
-impl BetaSampler {
-    pub fn centered() -> Self {
-        Self {
-            alpha: 2.0,
-            beta: 2.0,
-        }
-    }
-
-    /// Kumaraswamy sample approximating Beta(alpha, beta).
-    fn kumaraswamy_sample(&self) -> f64 {
-        let u: f64 = fastrand::f64().max(1e-10);
-        (1.0 - (1.0 - u.powf(1.0 / self.beta)).powf(1.0 / self.alpha)).clamp(0.0, 1.0)
-    }
-}
-
-impl SamplingStrategy for BetaSampler {
-    fn sample(
-        &self,
-        canvas_width: f64,
-        canvas_height: f64,
-        stroke_width: f64,
-        min_len: f64,
-        max_len: f64,
-    ) -> LineSegment {
-        let x1 = self.kumaraswamy_sample() * canvas_width;
-        let y1 = self.kumaraswamy_sample() * canvas_height;
-
-        let angle = fastrand::f64() * std::f64::consts::TAU;
-        let len = resolve_length(min_len, max_len);
-
-        let x2 = (x1 + angle.cos() * len).clamp(0.0, canvas_width);
-        let y2 = (y1 + angle.sin() * len).clamp(0.0, canvas_height);
-
-        LineSegment {
-            x1,
-            y1,
-            x2,
-            y2,
-            width: stroke_width,
-        }
-    }
-}
-
-/// Create a sampler from a strategy name.
-pub fn create_sampler(name: &str) -> Box<dyn SamplingStrategy> {
-    match name {
-        "beta" => Box::new(BetaSampler::centered()),
-        _ => Box::new(UniformSampler),
     }
 }

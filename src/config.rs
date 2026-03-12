@@ -32,9 +32,17 @@ pub struct Args {
     #[arg(long, default_value_t = 200)]
     pub k: usize,
 
-    /// Sampling strategy: "uniform" or "beta"
+    /// X position distribution: uniform|center|edges|low|high|beta:a,b
     #[arg(long, default_value = "uniform")]
-    pub sampler: String,
+    pub x_sampler: String,
+
+    /// Y position distribution: uniform|center|edges|low|high|beta:a,b
+    #[arg(long, default_value = "uniform")]
+    pub y_sampler: String,
+
+    /// Line length distribution: uniform|center|edges|low|high|beta:a,b
+    #[arg(long, default_value = "uniform")]
+    pub length_sampler: String,
 
     /// Robot server address (omit for preview-only mode)
     #[arg(long)]
@@ -74,7 +82,9 @@ pub struct Config {
     pub canvas_height_cm: f64,
     pub ppi: f64,
     pub k: usize,
-    pub sampler: String,
+    pub x_sampler: String,
+    pub y_sampler: String,
+    pub length_sampler: String,
     pub stroke_width_cm: f64,
     pub min_line_len_cm: f64,
     pub max_line_len_cm: f64,
@@ -91,7 +101,9 @@ impl Config {
             canvas_height_cm: args.canvas_height,
             ppi: args.ppi,
             k: args.k,
-            sampler: args.sampler.clone(),
+            x_sampler: args.x_sampler.clone(),
+            y_sampler: args.y_sampler.clone(),
+            length_sampler: args.length_sampler.clone(),
             stroke_width_cm: args.stroke_width,
             min_line_len_cm: args.min_line_len,
             max_line_len_cm: args.max_line_len,

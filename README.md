@@ -63,7 +63,9 @@ The canvas aspect ratio is automatically adjusted to match the source (fit withi
 | `--gamma` | `1.0` | Gamma correction for target image. <1 brightens, >1 darkens |
 | `--min-line-len` | `0.2` | Minimum line length in cm |
 | `--max-line-len` | `5.0` | Maximum line length in cm |
-| `--sampler` | `uniform` | Sampling strategy: `uniform` or `beta` |
+| `--x-sampler` | `uniform` | X position distribution: `uniform`, `center`, `edges`, `low`, `high`, or `beta:a,b` |
+| `--y-sampler` | `uniform` | Y position distribution (same options) |
+| `--length-sampler` | `uniform` | Line length distribution (same options) |
 
 ### Robot and network options
 

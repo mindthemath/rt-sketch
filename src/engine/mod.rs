@@ -7,7 +7,7 @@ use tiny_skia::Pixmap;
 
 use crate::config::Config;
 use canvas::{Canvas, LineSegment};
-use sampler::SamplingStrategy;
+use sampler::{Distribution, LineSampler};
 
 /// Result of a single engine step.
 pub struct StepResult {
@@ -20,7 +20,7 @@ pub struct StepResult {
 /// The proposal engine: generates K proposals, scores them, picks the best.
 pub struct ProposalEngine {
     pub canvas: Canvas,
-    sampler: Box<dyn SamplingStrategy>,
+    sampler: LineSampler,
     processing_width: u32,
     processing_height: u32,
     stroke_width: f64,
@@ -38,7 +38,10 @@ pub struct ProposalEngine {
 
 impl ProposalEngine {
     pub fn new(config: &Config) -> Self {
-        let sampler = sampler::create_sampler(&config.sampler);
+        let x = Distribution::parse(&config.x_sampler).expect("invalid x-sampler");
+        let y = Distribution::parse(&config.y_sampler).expect("invalid y-sampler");
+        let length = Distribution::parse(&config.length_sampler).expect("invalid length-sampler");
+        let sampler = LineSampler::new(x, y, length);
         let pw = config.processing_width();
         let ph = config.resolution;
         let prev_w = config.preview_width();
@@ -63,8 +66,19 @@ impl ProposalEngine {
         }
     }
 
-    pub fn set_sampler(&mut self, name: &str) {
-        self.sampler = sampler::create_sampler(name);
+    pub fn set_x_sampler(&mut self, spec: &str) -> Result<(), String> {
+        self.sampler.x = Distribution::parse(spec)?;
+        Ok(())
+    }
+
+    pub fn set_y_sampler(&mut self, spec: &str) -> Result<(), String> {
+        self.sampler.y = Distribution::parse(spec)?;
+        Ok(())
+    }
+
+    pub fn set_length_sampler(&mut self, spec: &str) -> Result<(), String> {
+        self.sampler.length = Distribution::parse(spec)?;
+        Ok(())
     }
 
     pub fn reset(&mut self) {

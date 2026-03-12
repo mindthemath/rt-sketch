@@ -256,10 +256,28 @@ fn engine_loop(
                         tracing::info!("K set to {}", current_k);
                     }
                 }
-                "set_sampler" => {
+                "set_x_sampler" => {
                     if let Some(v) = cmd.value.and_then(|v| v.as_str().map(|s| s.to_string())) {
-                        engine.set_sampler(&v);
-                        tracing::info!("sampler set to {}", v);
+                        match engine.set_x_sampler(&v) {
+                            Ok(()) => tracing::info!("x sampler set to {}", v),
+                            Err(e) => tracing::warn!("invalid x sampler '{}': {}", v, e),
+                        }
+                    }
+                }
+                "set_y_sampler" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_str().map(|s| s.to_string())) {
+                        match engine.set_y_sampler(&v) {
+                            Ok(()) => tracing::info!("y sampler set to {}", v),
+                            Err(e) => tracing::warn!("invalid y sampler '{}': {}", v, e),
+                        }
+                    }
+                }
+                "set_length_sampler" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_str().map(|s| s.to_string())) {
+                        match engine.set_length_sampler(&v) {
+                            Ok(()) => tracing::info!("length sampler set to {}", v),
+                            Err(e) => tracing::warn!("invalid length sampler '{}': {}", v, e),
+                        }
                     }
                 }
                 "set_min_len" => {
