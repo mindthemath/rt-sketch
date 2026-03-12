@@ -12,6 +12,7 @@ use clap::Parser;
 use tokio::sync::{broadcast, mpsc};
 
 use config::{Args, Config};
+use engine::canvas::Canvas;
 use engine::ProposalEngine;
 use frame_source::FrameSource;
 use output::{CommandSink, HttpSink, NoopSink};
@@ -107,8 +108,6 @@ fn engine_loop(
 ) {
     let pw = config.processing_width();
     let ph = config.resolution;
-    let preview_w = config.preview_width();
-    let preview_h = config.preview_height();
 
     let mut frame_source = FrameSource::new(source_str, pw, ph, config.fps);
 
@@ -180,9 +179,9 @@ fn engine_loop(
                 "pause" => {
                     *state.running.lock().unwrap() = false;
                     // Send final preview so the UI shows the latest canvas state
-                    let canvas_raster = engine.canvas.rasterize(pw, ph);
+                    let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
                     let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
-                    let preview_png = engine.canvas.rasterize_png(preview_w, preview_h);
+                    let preview_png = engine.preview_png();
                     let preview_b64 = base64::engine::general_purpose::STANDARD.encode(&preview_png);
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
@@ -310,17 +309,13 @@ fn engine_loop(
         *state.current_score.lock().unwrap() = result.score;
         *state.canvas.lock().unwrap() = engine.canvas.clone();
 
-        // Send update to web UI
-        let canvas_raster = engine.canvas.rasterize(pw, ph);
+        // Send update to web UI — use cached pixmap (O(1) instead of O(n lines))
+        let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
         let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
 
-        // Only generate the expensive full-res preview every 5 iterations
-        let preview_b64 = if iteration % 5 == 0 {
-            let preview_png = engine.canvas.rasterize_png(preview_w, preview_h);
-            Some(base64::engine::general_purpose::STANDARD.encode(&preview_png))
-        } else {
-            None
-        };
+        // Preview from cached pixmap — O(1), no re-rasterization needed
+        let preview_png = engine.preview_png();
+        let preview_b64 = Some(base64::engine::general_purpose::STANDARD.encode(&preview_png));
 
         // Only re-encode target if we got a new frame this iteration
         let target_b64 = if got_new_frame {
