@@ -112,10 +112,25 @@ fn engine_loop(
 
     let mut frame_source = FrameSource::new(source_str, pw, ph, config.fps);
 
-    // Read the first frame
-    let first_frame = frame_source
-        .next_frame()
-        .expect("failed to read first frame from source");
+    // Read the first frame (webcams may need a moment to initialize)
+    let first_frame = {
+        let mut frame = None;
+        for attempt in 1..=10 {
+            match frame_source.next_frame() {
+                Some(f) => {
+                    frame = Some(f);
+                    break;
+                }
+                None => {
+                    tracing::warn!("waiting for first frame (attempt {}/10)...", attempt);
+                    std::thread::sleep(Duration::from_millis(500));
+                    // Re-spawn ffmpeg in case it exited
+                    frame_source = FrameSource::new(source_str, pw, ph, config.fps);
+                }
+            }
+        }
+        frame.expect("failed to read first frame after 10 attempts — check ffmpeg output above")
+    };
 
     {
         let mut tf = state.target_frame.lock().unwrap();

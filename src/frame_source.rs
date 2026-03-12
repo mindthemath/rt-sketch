@@ -125,7 +125,7 @@ impl FrameSource {
             .arg("rawvideo")
             .arg("pipe:1");
 
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
 
         tracing::info!("spawning ffmpeg: {:?}", cmd);
 
