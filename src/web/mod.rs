@@ -95,10 +95,16 @@ async fn css_handler() -> Response {
 
 async fn svg_handler(State(state): State<Arc<AppState>>) -> Response {
     let svg = state.canvas.lock().unwrap().to_svg();
+    let line_count = state.canvas.lock().unwrap().lines.len();
+    let mse = *state.current_score.lock().unwrap();
+    let disposition = format!(
+        "attachment; filename=\"rt-sketch_{}lines_{:.6}mse.svg\"",
+        line_count, mse
+    );
     (
         [
-            ("content-type", "image/svg+xml"),
-            ("content-disposition", "attachment; filename=\"rt-sketch.svg\""),
+            ("content-type", "image/svg+xml".to_string()),
+            ("content-disposition", disposition),
         ],
         svg,
     )
