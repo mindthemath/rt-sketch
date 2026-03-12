@@ -12,6 +12,7 @@ use clap::Parser;
 use tokio::sync::{broadcast, mpsc};
 
 use config::{Args, Config};
+use engine::sampler::LineLengthMode;
 use engine::ProposalEngine;
 use frame_source::FrameSource;
 use output::{CommandSink, HttpSink, NoopSink};
@@ -167,6 +168,21 @@ fn engine_loop(
                     if let Some(v) = cmd.value.and_then(|v| v.as_str().map(|s| s.to_string())) {
                         engine.set_sampler(&v);
                         tracing::info!("sampler set to {}", v);
+                    }
+                }
+                "set_line_mode" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_str().map(|s| s.to_string())) {
+                        engine.line_length_mode = match v.as_str() {
+                            "fixed" => LineLengthMode::Fixed,
+                            _ => LineLengthMode::Random,
+                        };
+                        tracing::info!("line length mode set to {:?}", engine.line_length_mode);
+                    }
+                }
+                "set_line_len" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_f64()) {
+                        engine.fixed_line_len = v;
+                        tracing::info!("fixed line length set to {} cm", v);
                     }
                 }
                 _ => {}

@@ -19,15 +19,18 @@
     <main>
         <div class="panel">
             <h2>target (processing res)</h2>
-            <img id="target-img" alt="target frame">
+            <div class="placeholder" id="target-placeholder">waiting for source...</div>
+            <img id="target-img" alt="target frame" style="display:none">
         </div>
         <div class="panel">
             <h2>canvas (processing res)</h2>
-            <img id="canvas-img" alt="canvas at processing resolution">
+            <div class="placeholder" id="canvas-placeholder">press start to begin</div>
+            <img id="canvas-img" alt="canvas at processing resolution" style="display:none">
         </div>
         <div class="panel preview-panel">
             <h2>canvas preview (to-scale)</h2>
-            <img id="preview-img" alt="canvas at full scale">
+            <div class="placeholder" id="preview-placeholder">press start to begin</div>
+            <img id="preview-img" alt="canvas at full scale" style="display:none">
         </div>
     </main>
     <footer>
@@ -41,6 +44,17 @@
             <label>
                 K: <input type="range" id="slider-k" min="1" max="500" value="10">
                 <span id="val-k">10</span>
+            </label>
+            <label>
+                length:
+                <select id="select-line-mode">
+                    <option value="random">random</option>
+                    <option value="fixed">fixed</option>
+                </select>
+            </label>
+            <label id="line-len-group">
+                <input type="range" id="slider-line-len" min="0.1" max="10" step="0.1" value="1.0">
+                <span id="val-line-len">1.0</span> cm
             </label>
         </div>
     </footer>

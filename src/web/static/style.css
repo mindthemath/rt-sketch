@@ -76,6 +76,16 @@ main {
     image-rendering: auto;
 }
 
+.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+    color: #555;
+    font-size: 0.85rem;
+    background: #222;
+}
+
 footer {
     display: flex;
     align-items: center;
@@ -127,4 +137,14 @@ button:active { background: #555; }
 .sliders span {
     min-width: 2rem;
     color: #6f6;
+}
+
+.sliders select {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.4rem;
+    background: #333;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
 }

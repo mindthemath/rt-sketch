@@ -5,6 +5,10 @@
     const canvasImg = document.getElementById("canvas-img");
     const previewImg = document.getElementById("preview-img");
 
+    const targetPlaceholder = document.getElementById("target-placeholder");
+    const canvasPlaceholder = document.getElementById("canvas-placeholder");
+    const previewPlaceholder = document.getElementById("preview-placeholder");
+
     const statIteration = document.getElementById("stat-iteration");
     const statLines = document.getElementById("stat-lines");
     const statScore = document.getElementById("stat-score");
@@ -12,6 +16,16 @@
 
     const sliderK = document.getElementById("slider-k");
     const valK = document.getElementById("val-k");
+
+    const selectLineMode = document.getElementById("select-line-mode");
+    const lineLenGroup = document.getElementById("line-len-group");
+    const sliderLineLen = document.getElementById("slider-line-len");
+    const valLineLen = document.getElementById("val-line-len");
+
+    function showImg(img, placeholder) {
+        img.style.display = "block";
+        placeholder.style.display = "none";
+    }
 
     // FPS tracking
     let lastUpdateTime = performance.now();
@@ -35,13 +49,16 @@
 
         if (msg.canvas_png) {
             canvasImg.src = "data:image/png;base64," + msg.canvas_png;
+            showImg(canvasImg, canvasPlaceholder);
             updateFps();
         }
         if (msg.target_png) {
             targetImg.src = "data:image/png;base64," + msg.target_png;
+            showImg(targetImg, targetPlaceholder);
         }
         if (msg.preview_png) {
             previewImg.src = "data:image/png;base64," + msg.preview_png;
+            showImg(previewImg, previewPlaceholder);
         }
         if (msg.iteration !== undefined && msg.iteration !== null) {
             statIteration.textContent = msg.iteration.toLocaleString();
@@ -76,5 +93,21 @@
     sliderK.addEventListener("input", () => {
         valK.textContent = sliderK.value;
         send("set_k", parseInt(sliderK.value, 10));
+    });
+
+    // Line length mode
+    function updateLineLenVisibility() {
+        lineLenGroup.style.display = selectLineMode.value === "fixed" ? "flex" : "none";
+    }
+    updateLineLenVisibility();
+
+    selectLineMode.addEventListener("change", () => {
+        send("set_line_mode", selectLineMode.value);
+        updateLineLenVisibility();
+    });
+
+    sliderLineLen.addEventListener("input", () => {
+        valLineLen.textContent = parseFloat(sliderLineLen.value).toFixed(1);
+        send("set_line_len", parseFloat(sliderLineLen.value));
     });
 })();
