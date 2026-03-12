@@ -40,6 +40,9 @@ clean:
 fmt:
 	cargo fmt
 
+devhelp:
+	cargo run -- --help
+
 ## help: Show this help
 help:
 	@echo "rt-sketch — real-time video-to-SVG sketch engine"
