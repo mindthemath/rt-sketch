@@ -309,18 +309,26 @@ fn engine_loop(
         let canvas_raster = engine.canvas.rasterize(pw, ph);
         let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
 
-        // Generate preview at full PPI scale
-        let preview_png = engine.canvas.rasterize_png(preview_w, preview_h);
-        let preview_b64 = base64::engine::general_purpose::STANDARD.encode(&preview_png);
+        // Only generate the expensive full-res preview every 10 iterations
+        let preview_b64 = if iteration % 10 == 0 {
+            let preview_png = engine.canvas.rasterize_png(preview_w, preview_h);
+            Some(base64::engine::general_purpose::STANDARD.encode(&preview_png))
+        } else {
+            None
+        };
 
-        // Also send target if it changed
-        let target_b64 = web::gray_to_base64_png(&target, pw, ph);
+        // Only re-encode target if we got a new frame this iteration
+        let target_b64 = if got_new_frame {
+            Some(web::gray_to_base64_png(&target, pw, ph))
+        } else {
+            None
+        };
 
         let _ = state.update_tx.send(UpdateMessage {
             msg_type: "update".to_string(),
             canvas_png: Some(canvas_b64),
-            target_png: Some(target_b64),
-            preview_png: Some(preview_b64),
+            target_png: target_b64,
+            preview_png: preview_b64,
             iteration: Some(iteration),
             score: Some(result.score),
             fps: None,

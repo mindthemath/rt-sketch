@@ -57,9 +57,13 @@ impl ProposalEngine {
         let pw = self.processing_width;
         let ph = self.processing_height;
 
-        // Current canvas score
-        let current_raster = self.canvas.rasterize(pw, ph);
+        // Rasterize current canvas once (shared across all candidates)
+        let base_pixmap = self.canvas.rasterize_pixmap(pw, ph);
+        let current_raster = Canvas::pixmap_to_gray(&base_pixmap);
         let current_score = scorer::asymmetric_mse(&current_raster, target, self.alpha);
+
+        let scale_x = pw as f64 / self.canvas.width_cm;
+        let scale_y = ph as f64 / self.canvas.height_cm;
 
         // Generate K candidate lines
         let candidates: Vec<LineSegment> = (0..k)
@@ -74,13 +78,14 @@ impl ProposalEngine {
             })
             .collect();
 
-        // Score each candidate in parallel
+        // Score each candidate in parallel — clone the pixmap (not the canvas),
+        // draw only the one new line, then score.
         let scores: Vec<f64> = candidates
             .par_iter()
             .map(|line| {
-                let mut test_canvas = self.canvas.clone();
-                test_canvas.add_line(*line);
-                let raster = test_canvas.rasterize(pw, ph);
+                let mut test_pixmap = base_pixmap.clone();
+                Canvas::rasterize_line_onto(&mut test_pixmap, line, scale_x, scale_y);
+                let raster = Canvas::pixmap_to_gray(&test_pixmap);
                 scorer::asymmetric_mse(&raster, target, self.alpha)
             })
             .collect();
