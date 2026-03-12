@@ -29,7 +29,7 @@ pub struct Args {
     pub ppi: f64,
 
     /// Number of proposals per step
-    #[arg(long, default_value_t = 10)]
+    #[arg(long, default_value_t = 50)]
     pub k: usize,
 
     /// Sampling strategy: "uniform" or "beta"
