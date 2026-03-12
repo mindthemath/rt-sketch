@@ -2,6 +2,7 @@
 
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
+DEVICE ?= 0
 
 ## build: Compile release binary
 build:
@@ -9,7 +10,7 @@ build:
 
 ## run: Run with webcam (default args)
 run: build
-	./target/release/rt-sketch --source image:$(IMAGE)
+	./target/release/rt-sketch --source webcam:$(DEVICE)
 
 ## run-image: Run with a static test image
 run-image: build
@@ -42,7 +43,7 @@ fmt:
 
 ## snap: Capture a single frame from webcam and save as IMAGE
 snap:
-	ffmpeg -f avfoundation -framerate 30 -video_size 1280x720 -i "0" -frames:v 1 -y $(IMAGE)
+	ffmpeg -f avfoundation -framerate 30 -video_size 1280x720 -i "$(DEVICE)" -frames:v 1 -y $(IMAGE)
 	@echo "Saved webcam frame to $(IMAGE)"
 
 devhelp:
