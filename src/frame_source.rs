@@ -135,7 +135,7 @@ impl FrameSource {
         let mut cmd = Command::new("ffmpeg");
         cmd.arg("-hide_banner")
             .arg("-loglevel")
-            .arg("error");
+            .arg("fatal");
 
         match &spec {
             SourceSpec::Image(path) => {
