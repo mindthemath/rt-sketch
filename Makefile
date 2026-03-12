@@ -10,7 +10,7 @@ build:
 
 ## run: Run with webcam (default args)
 run: build
-	./target/release/rt-sketch --source webcam:$(DEVICE)
+	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 15 --canvas-width 15
 
 ## run-image: Run with a static test image
 run-image: build
