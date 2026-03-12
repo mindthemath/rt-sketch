@@ -179,4 +179,15 @@
         valGamma.textContent = parseFloat(sliderGamma.value).toFixed(1);
         send("set_gamma", parseFloat(sliderGamma.value));
     });
+
+    // Target image display size (purely visual, no server command)
+    const sliderTargetSize = document.getElementById("slider-target-size");
+    const valTargetSize = document.getElementById("val-target-size");
+    const targetImgWrapper = document.querySelector(".target-img-wrapper");
+
+    sliderTargetSize.addEventListener("input", () => {
+        const pct = sliderTargetSize.value;
+        valTargetSize.textContent = pct;
+        targetImgWrapper.style.setProperty("--target-size", pct + "%");
+    });
 })();
