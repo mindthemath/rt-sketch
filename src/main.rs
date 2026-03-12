@@ -253,19 +253,40 @@ fn engine_loop(
             }
         }
 
+        // Always drain frames to prevent ffmpeg pipe buffer from filling up
+        let got_new_frame = if let Some(new_frame) = frame_source.next_frame() {
+            let mut tf = state.target_frame.lock().unwrap();
+            *tf = Some(new_frame);
+            true
+        } else {
+            false
+        };
+
         let running = *state.running.lock().unwrap();
         if !running {
+            // Send target updates even while paused so camera feed stays live
+            if got_new_frame {
+                let target = state.target_frame.lock().unwrap().clone().unwrap();
+                let target_b64 = web::gray_to_base64_png(&target, pw, ph);
+                let _ = state.update_tx.send(UpdateMessage {
+                    msg_type: "target".to_string(),
+                    canvas_png: None,
+                    target_png: Some(target_b64),
+                    preview_png: None,
+                    iteration: None,
+                    score: None,
+                    fps: None,
+                    k: None,
+                    line_count: None,
+                    running: None,
+                    last_line_len: None,
+                });
+            }
             std::thread::sleep(Duration::from_millis(50));
             continue;
         }
 
         let step_start = Instant::now();
-
-        // Try to get a new frame (for video/webcam sources)
-        if let Some(new_frame) = frame_source.next_frame() {
-            let mut tf = state.target_frame.lock().unwrap();
-            *tf = Some(new_frame);
-        }
 
         let target = state.target_frame.lock().unwrap().clone().unwrap();
 

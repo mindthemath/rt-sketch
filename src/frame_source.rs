@@ -110,6 +110,7 @@ impl FrameSource {
                 } else if cfg!(target_os = "macos") {
                     cmd.arg("-f").arg("avfoundation")
                         .arg("-framerate").arg("30")
+                        .arg("-pixel_format").arg("nv12")
                         .arg("-i").arg(format!("{}:", device));
                 }
             }
