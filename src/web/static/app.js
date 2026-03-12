@@ -159,6 +159,6 @@
 
     sliderAlpha.addEventListener("input", () => {
         valAlpha.textContent = parseFloat(sliderAlpha.value).toFixed(1);
-        send("set_overshoot_alpha", parseFloat(sliderAlpha.value));
+        send("set_alpha", parseFloat(sliderAlpha.value));
     });
 })();

@@ -25,7 +25,7 @@ pub struct ProposalEngine {
     stroke_width: f64,
     pub min_line_len: f64,
     pub max_line_len: f64,
-    pub overshoot_alpha: f64,
+    pub alpha: f64,
 }
 
 impl ProposalEngine {
@@ -39,7 +39,7 @@ impl ProposalEngine {
             stroke_width: config.stroke_width_cm,
             min_line_len: config.min_line_len_cm,
             max_line_len: config.max_line_len_cm,
-            overshoot_alpha: config.overshoot_alpha,
+            alpha: config.alpha,
         }
     }
 
@@ -59,7 +59,7 @@ impl ProposalEngine {
 
         // Current canvas score
         let current_raster = self.canvas.rasterize(pw, ph);
-        let current_score = scorer::asymmetric_mse(&current_raster, target, self.overshoot_alpha);
+        let current_score = scorer::asymmetric_mse(&current_raster, target, self.alpha);
 
         // Generate K candidate lines
         let candidates: Vec<LineSegment> = (0..k)
@@ -81,7 +81,7 @@ impl ProposalEngine {
                 let mut test_canvas = self.canvas.clone();
                 test_canvas.add_line(*line);
                 let raster = test_canvas.rasterize(pw, ph);
-                scorer::asymmetric_mse(&raster, target, self.overshoot_alpha)
+                scorer::asymmetric_mse(&raster, target, self.alpha)
             })
             .collect();
 
