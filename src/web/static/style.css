@@ -33,11 +33,18 @@ header h1 {
     font-size: 0.85rem;
     color: #999;
     min-width: 0;
-    overflow: hidden;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
+
+#btn-export .btn-label { display: inline; }
+#btn-export .btn-icon { display: none; }
 
 @media (max-width: 600px) {
     header h1 { display: none; }
+    #btn-export { padding: 0.4rem 0.6rem; }
+    #btn-export .btn-label { display: none; }
+    #btn-export .btn-icon { display: inline; }
 }
 
 .stat {
