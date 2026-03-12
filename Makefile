@@ -1,4 +1,4 @@
-.PHONY: build run run-image dev check test clean fmt help
+.PHONY: build run run-image dev check test clean fmt help snap
 
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
@@ -39,6 +39,11 @@ clean:
 ## fmt: Format code
 fmt:
 	cargo fmt
+
+## snap: Capture a single frame from webcam and save as IMAGE
+snap:
+	ffmpeg -f avfoundation -framerate 30 -video_size 1280x720 -i "0" -frames:v 1 -y $(IMAGE)
+	@echo "Saved webcam frame to $(IMAGE)"
 
 devhelp:
 	cargo run -- --help
