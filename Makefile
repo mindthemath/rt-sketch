@@ -43,7 +43,7 @@ fmt:
 
 ## snap: Capture a single frame from webcam and save as IMAGE
 snap:
-	ffmpeg -f avfoundation -framerate 30 -video_size 1280x720 -i "$(DEVICE)" -frames:v 1 -y $(IMAGE)
+	ffmpeg -f avfoundation -pixel_format uyvy422 -framerate 30 -video_size 1280x720 -i "$(DEVICE)" -frames:v 1 -update 1 -y $(IMAGE)
 	@echo "Saved webcam frame to $(IMAGE)"
 
 devhelp:
