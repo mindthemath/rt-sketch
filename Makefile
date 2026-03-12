@@ -9,7 +9,7 @@ build:
 
 ## run: Run with webcam (default args)
 run: build
-	./target/release/rt-sketch --source webcam
+	./target/release/rt-sketch --source image:$(IMAGE)
 
 ## run-image: Run with a static test image
 run-image: build
@@ -21,7 +21,7 @@ dev:
 
 ## dev-webcam: Run in debug mode with webcam
 dev-webcam:
-	cargo run -- --source webcam
+	cargo run -- --source webcam:0
 
 ## check: Run clippy and tests
 check: fmt
