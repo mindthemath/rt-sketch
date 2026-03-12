@@ -9,7 +9,7 @@ pub struct Args {
     pub source: String,
 
     /// Target frames per second
-    #[arg(long, default_value_t = 30.0)]
+    #[arg(long, default_value_t = 6.0)]
     pub fps: f64,
 
     /// Processing resolution height in pixels

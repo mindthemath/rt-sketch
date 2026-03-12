@@ -62,6 +62,7 @@ fn probe_avfoundation_dimensions(device: &str) -> Option<(u32, u32)> {
             "-f", "avfoundation",
             "-framerate", "30",
             "-pixel_format", "nv12",
+            "-video_size", "640x480",
             "-i", &format!("{}:", device),
             "-frames:v", "1",
             "-f", "null", "-",
@@ -143,17 +144,22 @@ impl FrameSource {
                 cmd.arg("-r").arg(format!("{}", fps));
             }
             SourceSpec::Webcam(device) => {
+                // Request 640x480 capture — close to typical processing
+                // resolution and much cheaper than 1280x720.
                 if cfg!(target_os = "linux") {
                     let dev = if device.starts_with("/dev/") {
                         device.clone()
                     } else {
                         format!("/dev/video{}", device)
                     };
-                    cmd.arg("-f").arg("v4l2").arg("-i").arg(dev);
+                    cmd.arg("-f").arg("v4l2")
+                        .arg("-video_size").arg("640x480")
+                        .arg("-i").arg(dev);
                 } else if cfg!(target_os = "macos") {
                     cmd.arg("-f").arg("avfoundation")
                         .arg("-framerate").arg("30")
                         .arg("-pixel_format").arg("nv12")
+                        .arg("-video_size").arg("640x480")
                         .arg("-i").arg(format!("{}:", device));
                 }
             }
