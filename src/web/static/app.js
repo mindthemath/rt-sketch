@@ -50,13 +50,29 @@
         statFps.textContent = displayFps;
     }
 
+    let isRunning = false;
+    let hasStarted = false;
+    const btnToggle = document.getElementById("btn-toggle");
+
+    function updateToggleButton() {
+        btnToggle.textContent = isRunning ? "Pause" : (hasStarted ? "Resume" : "Start");
+    }
+
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
+
+        if (msg.running !== undefined && msg.running !== null) {
+            isRunning = msg.running;
+            if (isRunning) hasStarted = true;
+            updateToggleButton();
+        }
 
         if (msg.type === "reset") {
             hideImg(canvasImg, canvasPlaceholder);
             hideImg(previewImg, previewPlaceholder);
             statFps.textContent = "-";
+            hasStarted = false;
+            updateToggleButton();
         }
 
         if (msg.canvas_png) {
@@ -97,9 +113,13 @@
         }
     }
 
-    document.getElementById("btn-start").addEventListener("click", () => send("start"));
-    document.getElementById("btn-pause").addEventListener("click", () => send("pause"));
-    document.getElementById("btn-resume").addEventListener("click", () => send("resume"));
+    btnToggle.addEventListener("click", () => {
+        if (isRunning) {
+            send("pause");
+        } else {
+            send(hasStarted ? "resume" : "start");
+        }
+    });
     document.getElementById("btn-reset").addEventListener("click", () => send("reset"));
     document.getElementById("btn-export").addEventListener("click", () => {
         window.open("/svg", "_blank");
