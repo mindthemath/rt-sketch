@@ -211,10 +211,20 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<ViewerState>) {
                                             if let Some(inst) = instances.get_mut(name) {
                                                 inst.paused = is_pause;
                                             }
+                                            let _ = state.event_tx.send(ViewerEvent::State {
+                                                name: name.clone(),
+                                                paused: is_pause,
+                                            });
                                         }
                                         None => {
                                             for inst in instances.values_mut() {
                                                 inst.paused = is_pause;
+                                            }
+                                            for name in instances.keys() {
+                                                let _ = state.event_tx.send(ViewerEvent::State {
+                                                    name: name.clone(),
+                                                    paused: is_pause,
+                                                });
                                             }
                                         }
                                     }

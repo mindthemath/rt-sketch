@@ -78,8 +78,8 @@ function createInstance(name, widthCm, heightCm, strokeCm) {
     bExport.textContent = "Export";
     bExport.addEventListener("click", () => {
         const inst = instances.get(name);
-        const ts = new Date().toISOString().slice(11,19).replace(/:/g,"");
-        exportSvg(inst, name + "-" + ts + ".svg");
+        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        exportSvg(inst, name + "_" + ts + ".svg");
     });
 
     ctrlBar.appendChild(bToggle);
@@ -420,6 +420,11 @@ function connect() {
                 if (inst) clearCanvas(inst);
                 break;
             }
+
+            case "state":
+                setInstanceRunning(msg.name, !msg.paused);
+                updateGlobalToggle();
+                break;
 
             case "disconnect":
                 disconnectInstance(msg.name);

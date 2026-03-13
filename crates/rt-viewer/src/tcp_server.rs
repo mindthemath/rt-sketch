@@ -55,6 +55,8 @@ pub enum ViewerEvent {
     Reset { name: String },
     #[serde(rename = "disconnect")]
     Disconnect { name: String },
+    #[serde(rename = "state")]
+    State { name: String, paused: bool },
 }
 
 /// Control commands sent from the viewer to workers.
