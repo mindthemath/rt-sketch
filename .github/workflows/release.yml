@@ -102,3 +102,28 @@ jobs:
           make_latest: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           files: rt-sketch-*.tar.gz
+          body: |
+            ## Getting started
+
+            **Requirement:** [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on your `PATH`.
+
+            ### Download and run
+
+            1. Download the archive for your platform below
+            2. Extract: `tar xzf rt-sketch-*.tar.gz`
+            3. Run: `./rt-sketch` (webcam) or `./rt-sketch --source image:photo.jpg` (static image)
+            4. Open **http://localhost:8080** in your browser
+
+            The archive also includes `rt-viewer`, a multi-instance viewer that aggregates line streams from multiple rt-sketch workers:
+
+            ```bash
+            # Start the viewer (TCP on :9900, web UI on :9901)
+            ./rt-viewer
+
+            # Connect rt-sketch instances to it
+            ./rt-sketch --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
+            ```
+
+            Open **http://localhost:9901** to see all instances drawing in real time.
+
+            See the [README](https://github.com/${{ github.repository }}#readme) for full usage and options.
