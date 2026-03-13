@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rt-protocol", "crates/rt-sketch", "crates/rt-viewer"]
+members = ["crates/rt-drawing", "crates/rt-protocol", "crates/rt-sketch", "crates/rt-viewer"]
 resolver = "2"
 
 [profile.release]

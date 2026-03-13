@@ -1248,6 +1248,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rt-drawing"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "fastrand",
+]
+
+[[package]]
 name = "rt-protocol"
 version = "0.1.0"
 

@@ -1,4 +1,4 @@
-.PHONY: build run run-image dev check test clean fmt help snap draw-basic draw-piecewise draw-examples
+.PHONY: build run run-image dev check test clean clean-examples fmt help snap draw-basic draw-piecewise examples
 
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
@@ -8,7 +8,7 @@ THREADS ?= 2
 
 ## build: Compile release binary
 build:
-	cargo build --release -p rt-sketch
+	cargo build --release
 
 ## run: Run with webcam (default args)
 run: build
@@ -45,6 +45,9 @@ test:
 clean:
 	cargo clean
 
+clean-examples:
+	rm -rf examples
+
 ## fmt: Format code
 fmt:
 	cargo fmt
@@ -67,8 +70,8 @@ draw-piecewise: build
 	./target/release/draw_curves --seed 55 --num-curves 9 --piecewise 3 --rot 45 --noise 0.2 -o curves_piecewise.svg --n-points 24 --step 36
 	@echo "Wrote curves_piecewise.svg"
 
-## draw-examples: Generate all example SVGs into examples/
-draw-examples: build
+## examples: Generate all example SVGs into examples/
+examples: build
 	./draw_examples.sh examples
 
 devhelp:

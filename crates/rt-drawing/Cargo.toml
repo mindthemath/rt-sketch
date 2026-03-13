@@ -1,0 +1,9 @@
+[package]
+name = "rt-drawing"
+version = "0.1.0"
+edition = "2021"
+description = "Envelope curve generation and SVG rendering"
+
+[dependencies]
+fastrand = "2"
+clap = { version = "4", features = ["derive"] }
