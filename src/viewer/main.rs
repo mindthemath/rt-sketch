@@ -80,14 +80,20 @@ async fn serve_html() -> Html<&'static str> {
     Html(include_str!("static/viewer.html"))
 }
 
-async fn serve_js() -> ([(axum::http::header::HeaderName, &'static str); 1], &'static str) {
+async fn serve_js() -> (
+    [(axum::http::header::HeaderName, &'static str); 1],
+    &'static str,
+) {
     (
         [(axum::http::header::CONTENT_TYPE, "application/javascript")],
         include_str!("static/viewer.js"),
     )
 }
 
-async fn serve_css() -> ([(axum::http::header::HeaderName, &'static str); 1], &'static str) {
+async fn serve_css() -> (
+    [(axum::http::header::HeaderName, &'static str); 1],
+    &'static str,
+) {
     (
         [(axum::http::header::CONTENT_TYPE, "text/css")],
         include_str!("static/viewer.css"),

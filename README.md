@@ -84,6 +84,8 @@ All preset modes use a Beta(a, b) distribution mapped to [0, 1]:
 | `--stream-name` | `rt-sketch` | Instance name for TCP stream identification |
 | `--stream-output` | *(none)* | Record preview to a file (e.g. `recording.mkv`) |
 | `--stream-url` | *(none)* | Stream preview to an RTMP URL (e.g. `rtmp://a.rtmp.youtube.com/live2/KEY`) |
+| `--auto-start` | `false` | Start drawing immediately without waiting for the web UI |
+| `--wait-for-viewer` | `false` | Block until the viewer is reachable before starting (requires `--stream-tcp`) |
 
 `--stream-tcp` can be combined with `--stream-output` or `--stream-url`. The latter two are mutually exclusive (both use FFmpeg for video encoding).
 
@@ -304,8 +306,11 @@ cloudflared access tcp --hostname viewer-tcp.your-domain.com --url localhost:500
 rt-sketch --source video:tcp://localhost:5000 \
   --stream-tcp localhost:5001 \
   --stream-name "remote-A" \
-  --auto-start
+  --auto-start \
+  --wait-for-viewer
 ```
+
+`--wait-for-viewer` blocks until the viewer is reachable, retrying every second. This ensures no lines are lost if the worker starts before the viewer is up. Without it, lines drawn before the viewer connects are silently dropped.
 
 Latency through Cloudflare adds a few milliseconds, which is negligible — the line stream is 32 bytes per update, and the video feed just needs to deliver frames roughly at the target FPS. The algorithm grabs the latest frame whenever it's ready, so jitter doesn't matter.
 

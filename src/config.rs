@@ -99,6 +99,10 @@ pub struct Args {
     /// Start drawing immediately without waiting for the web UI start button
     #[arg(long)]
     pub auto_start: bool,
+
+    /// Wait for a successful viewer connection before starting (requires --stream-tcp)
+    #[arg(long)]
+    pub wait_for_viewer: bool,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.

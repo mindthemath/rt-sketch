@@ -70,7 +70,11 @@ impl TcpOutput {
                 Err(_) => continue,
             }
         }
-        tracing::warn!("could not connect to viewer at {} (tried {} addrs)", self.addr, addrs.len());
+        tracing::warn!(
+            "could not connect to viewer at {} (tried {} addrs)",
+            self.addr,
+            addrs.len()
+        );
     }
 
     fn send_hello(&mut self) -> std::io::Result<()> {
@@ -90,6 +94,18 @@ impl TcpOutput {
         stream.write_all(&self.stroke_width_cm.to_le_bytes())?;
         stream.flush()?;
         Ok(())
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.stream.is_some()
+    }
+
+    /// Block until a connection to the viewer is established, retrying every second.
+    pub fn wait_for_connection(&mut self) {
+        while self.stream.is_none() {
+            std::thread::sleep(Duration::from_secs(1));
+            self.try_connect();
+        }
     }
 
     pub fn send_line(&mut self, line: &LineSegment) {

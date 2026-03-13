@@ -138,7 +138,10 @@ async fn main() {
 
     // Set up TCP viewer output if requested
     let tcp_config = args.stream_tcp.clone().map(|addr| {
-        let name = args.stream_name.clone().unwrap_or_else(|| "rt-sketch".to_string());
+        let name = args
+            .stream_name
+            .clone()
+            .unwrap_or_else(|| "rt-sketch".to_string());
         (addr, name)
     });
 
@@ -150,6 +153,13 @@ async fn main() {
         tracing::info!("Ctrl+C received, shutting down...");
         shutdown_signal.store(true, Ordering::SeqCst);
     });
+
+    // Validate --wait-for-viewer requires --stream-tcp
+    let wait_for_viewer = args.wait_for_viewer;
+    if wait_for_viewer && args.stream_tcp.is_none() {
+        eprintln!("error: --wait-for-viewer requires --stream-tcp");
+        std::process::exit(1);
+    }
 
     // Run engine loop in a blocking thread
     let engine_state = state.clone();
@@ -166,6 +176,7 @@ async fn main() {
             shutdown,
             tcp_config,
             auto_start,
+            wait_for_viewer,
         );
     })
     .await
@@ -205,6 +216,7 @@ fn engine_loop(
     shutdown: Arc<AtomicBool>,
     tcp_config: Option<(String, String)>,
     auto_start: bool,
+    wait_for_viewer: bool,
 ) {
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
@@ -220,6 +232,17 @@ fn engine_loop(
             config.stroke_width_cm,
         )
     });
+
+    // Block until viewer is reachable if requested
+    if wait_for_viewer {
+        if let Some(ref mut tcp) = tcp_output {
+            if !tcp.is_connected() {
+                tracing::info!("waiting for viewer connection...");
+                tcp.wait_for_connection();
+            }
+        }
+    }
+
     let pw = config.processing_width();
     let ph = config.resolution;
 
