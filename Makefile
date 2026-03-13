@@ -14,7 +14,10 @@ run: build
 	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
 
 record: build
-	./target/release/rt-ketch --source webcam:0 --stream-output recording.mkv
+	./target/release/rt-sketch --source webcam:0 --stream-output recording.mkv --fps $(FPS)
+
+record-image: build
+	./target/release/rt-sketch --source image:$(IMAGE) --stream-output recording.mkv --fps $(FPS)
 
 ## run-image: Run with a static test image
 run-image: build
