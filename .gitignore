@@ -3,3 +3,5 @@ test.png
 .DS_Store
 *.mp4
 *.mkv
+curves_*.svg
+examples/
