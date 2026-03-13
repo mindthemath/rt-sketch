@@ -43,7 +43,7 @@ test:
 
 ## clean: Remove build artifacts
 clean:
-	cargo clean
+	find . -name '.DS_Store' -delete
 
 clean-examples:
 	rm -rf examples
