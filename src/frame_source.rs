@@ -106,8 +106,8 @@ fn build_ffmpeg_cmd(source: &str, target_width: u32, target_height: u32, fps: f6
 
     match &spec {
         SourceSpec::Image(path) => {
-            cmd.arg("-loop").arg("1").arg("-i").arg(path);
-            cmd.arg("-r").arg(format!("{}", fps));
+            cmd.arg("-i").arg(path);
+            cmd.arg("-frames:v").arg("1");
         }
         SourceSpec::Webcam(device) => {
             if cfg!(target_os = "linux") {
@@ -171,12 +171,16 @@ fn spawn_ffmpeg(source: &str, target_width: u32, target_height: u32, fps: f64) -
 impl FrameSource {
     /// Create a new FrameSource from the given source spec.
     /// `target_width` and `target_height` are the processing resolution.
-    /// If ffmpeg fails to start or exits, the background reader will retry
-    /// automatically every 2 seconds.
+    /// For image sources, decodes the image once with ffmpeg and stops.
+    /// For video/webcam sources, runs ffmpeg continuously in a background
+    /// thread with automatic retry on failure.
     pub fn new(source: &str, target_width: u32, target_height: u32, fps: f64) -> Self {
         let frame_size = (target_width * target_height) as usize;
         let latest: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
         let shutdown = Arc::new(AtomicBool::new(false));
+
+        let spec = SourceSpec::parse(source);
+        let is_image = matches!(spec, SourceSpec::Image(_));
 
         let latest_writer = Arc::clone(&latest);
         let shutdown_flag = Arc::clone(&shutdown);
@@ -185,6 +189,37 @@ impl FrameSource {
         let handle = thread::Builder::new()
             .name("frame-reader".into())
             .spawn(move || {
+                if is_image {
+                    // Static image: decode once with ffmpeg (no -loop), set the
+                    // frame, and exit. The algorithm reuses the last frame when
+                    // next_frame() returns None, so no further work is needed.
+                    let mut child =
+                        match spawn_ffmpeg(&source_owned, target_width, target_height, fps) {
+                            Some(c) => c,
+                            None => {
+                                tracing::error!("failed to spawn ffmpeg for image");
+                                return;
+                            }
+                        };
+                    let mut stdout = match child.stdout.take() {
+                        Some(s) => s,
+                        None => {
+                            tracing::error!("ffmpeg stdout not captured for image");
+                            let _ = child.kill();
+                            return;
+                        }
+                    };
+                    let mut buf = vec![0u8; frame_size];
+                    if stdout.read_exact(&mut buf).is_ok() {
+                        let mut slot = latest_writer.lock().unwrap();
+                        *slot = Some(buf);
+                    }
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return;
+                }
+
+                // Video/webcam: continuously read frames
                 while !shutdown_flag.load(Ordering::Relaxed) {
                     // Spawn ffmpeg
                     let mut child =
