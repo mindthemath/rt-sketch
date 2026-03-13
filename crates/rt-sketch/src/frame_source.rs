@@ -141,7 +141,10 @@ fn build_ffmpeg_cmd(source: &str, target_width: u32, target_height: u32, fps: f6
     }
 
     let vf = match &spec {
-        SourceSpec::Image(_) => format!("scale={}:{}", target_width, target_height),
+        SourceSpec::Image(_) => format!(
+            "color=white:s={}x{},format=rgba[bg];[0]scale={}:{},format=rgba[fg];[bg][fg]overlay",
+            target_width, target_height, target_width, target_height
+        ),
         _ => format!("fps={},scale={}:{}", fps, target_width, target_height),
     };
     cmd.arg("-vf")
