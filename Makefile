@@ -3,6 +3,7 @@
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
 DEVICE ?= 0
+FPS ?= 24
 
 ## build: Compile release binary
 build:
@@ -10,11 +11,11 @@ build:
 
 ## run: Run with webcam (default args)
 run: build
-	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 15 --canvas-width 15 --fps 12
+	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
 
 ## run-image: Run with a static test image
 run-image: build
-	./target/release/rt-sketch --source image:$(IMAGE) --canvas-height 15 --canvas-width 15 --fps 12
+	./target/release/rt-sketch --source image:$(IMAGE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
 
 ## dev: Run in debug mode with a test image
 dev:
