@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::engine::canvas::LineSegment;
 
@@ -31,7 +31,12 @@ pub struct TcpOutput {
     canvas_height_cm: f32,
     stroke_width_cm: f32,
     shutdown: Arc<AtomicBool>,
+    last_connect_attempt: Option<Instant>,
+    reconnect_interval: Duration,
 }
+
+const MIN_RECONNECT_INTERVAL: Duration = Duration::from_millis(500);
+const MAX_RECONNECT_INTERVAL: Duration = Duration::from_secs(3);
 
 impl TcpOutput {
     pub fn new(
@@ -50,12 +55,26 @@ impl TcpOutput {
             canvas_height_cm: canvas_height_cm as f32,
             stroke_width_cm: stroke_width_cm as f32,
             shutdown,
+            last_connect_attempt: None,
+            reconnect_interval: MIN_RECONNECT_INTERVAL,
         };
         out.try_connect();
         out
     }
 
+    /// Attempt reconnect only if enough time has passed since the last attempt.
+    fn try_reconnect(&mut self) {
+        if let Some(last) = self.last_connect_attempt {
+            if last.elapsed() < self.reconnect_interval {
+                return;
+            }
+        }
+        self.try_connect();
+    }
+
     fn try_connect(&mut self) {
+        self.last_connect_attempt = Some(Instant::now());
+
         // Resolve hostname — may return multiple addresses (IPv6 + IPv4)
         let addrs: Vec<_> = match self.addr.to_socket_addrs() {
             Ok(addrs) => addrs.collect(),
@@ -80,17 +99,20 @@ impl TcpOutput {
                         self.stream = None;
                     } else {
                         tracing::info!("connected to viewer at {} ({})", self.addr, addr);
+                        self.reconnect_interval = MIN_RECONNECT_INTERVAL;
                     }
                     return;
                 }
                 Err(_) => continue,
             }
         }
+        // Back off on failure
         tracing::warn!(
-            "could not connect to viewer at {} (tried {} addrs)",
+            "could not connect to viewer at {} (retrying in {:.1}s)",
             self.addr,
-            addrs.len()
+            self.reconnect_interval.as_secs_f64()
         );
+        self.reconnect_interval = (self.reconnect_interval * 2).min(MAX_RECONNECT_INTERVAL);
     }
 
     fn send_hello(&mut self) -> std::io::Result<()> {
@@ -131,7 +153,7 @@ impl TcpOutput {
 
     pub fn send_line(&mut self, line: &LineSegment) {
         if self.stream.is_none() {
-            self.try_connect();
+            self.try_reconnect();
         }
         let Some(ref mut stream) = self.stream else {
             return;
@@ -154,11 +176,11 @@ impl TcpOutput {
     }
 
     /// Non-blocking poll for commands from the viewer.
-    /// Also attempts to reconnect if disconnected.
+    /// Also attempts to reconnect if disconnected (with backoff).
     pub fn poll_commands(&mut self) -> Vec<ViewerCommand> {
         let mut cmds = Vec::new();
         if self.stream.is_none() {
-            self.try_connect();
+            self.try_reconnect();
         }
         let Some(ref mut stream) = self.stream else {
             return cmds;
