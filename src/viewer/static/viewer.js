@@ -275,10 +275,7 @@ function connect() {
                     for (const l of instData.lines) {
                         drawLine(inst, l.x1, l.y1, l.x2, l.y2, l.width);
                     }
-                    // Connected instance with lines is likely running
-                    if (instData.lines.length > 0) {
-                        setInstanceRunning(inst.name, true);
-                    }
+                    setInstanceRunning(inst.name, !instData.paused);
                 }
                 updateGlobalToggle();
                 break;

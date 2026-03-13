@@ -221,6 +221,9 @@ fn engine_loop(
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
 
+    // Shared running flag for TCP output — reported in HELLO on reconnect
+    let tcp_running = Arc::new(AtomicBool::new(auto_start));
+
     // TCP viewer output — connects immediately if configured
     let mut tcp_output: Option<tcp_output::TcpOutput> = tcp_config.map(|(addr, name)| {
         tracing::info!("TCP viewer: {} as \"{}\"", addr, name);
@@ -230,6 +233,7 @@ fn engine_loop(
             config.canvas_width_cm,
             config.canvas_height_cm,
             config.stroke_width_cm,
+            tcp_running.clone(),
             shutdown.clone(),
         )
     });
@@ -548,6 +552,7 @@ fn engine_loop(
         };
 
         let running = *state.running.lock().unwrap();
+        tcp_running.store(running, Ordering::Relaxed);
         if !running {
             // Send target updates even while paused so camera feed stays live
             if got_new_frame {

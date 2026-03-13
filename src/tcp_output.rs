@@ -30,6 +30,7 @@ pub struct TcpOutput {
     canvas_width_cm: f32,
     canvas_height_cm: f32,
     stroke_width_cm: f32,
+    running: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
     last_connect_attempt: Option<Instant>,
     reconnect_interval: Duration,
@@ -45,6 +46,7 @@ impl TcpOutput {
         canvas_width_cm: f64,
         canvas_height_cm: f64,
         stroke_width_cm: f64,
+        running: Arc<AtomicBool>,
         shutdown: Arc<AtomicBool>,
     ) -> Self {
         let mut out = Self {
@@ -54,6 +56,7 @@ impl TcpOutput {
             canvas_width_cm: canvas_width_cm as f32,
             canvas_height_cm: canvas_height_cm as f32,
             stroke_width_cm: stroke_width_cm as f32,
+            running,
             shutdown,
             last_connect_attempt: None,
             reconnect_interval: MIN_RECONNECT_INTERVAL,
@@ -117,7 +120,7 @@ impl TcpOutput {
 
     fn send_hello(&mut self) -> std::io::Result<()> {
         let name_bytes = self.name.as_bytes();
-        let payload_len = 2 + name_bytes.len() + 12; // u16 name_len + name + 3x f32
+        let payload_len = 2 + name_bytes.len() + 12 + 1; // u16 name_len + name + 3x f32 + u8 running
 
         let stream = self.stream.as_mut().unwrap();
         // Header
@@ -130,6 +133,12 @@ impl TcpOutput {
         stream.write_all(&self.canvas_width_cm.to_le_bytes())?;
         stream.write_all(&self.canvas_height_cm.to_le_bytes())?;
         stream.write_all(&self.stroke_width_cm.to_le_bytes())?;
+        let running = if self.running.load(Ordering::Relaxed) {
+            1u8
+        } else {
+            0u8
+        };
+        stream.write_all(&[running])?;
         stream.flush()?;
         Ok(())
     }

@@ -141,7 +141,8 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<ViewerState>) {
                     "width_cm": inst.canvas_width_cm,
                     "height_cm": inst.canvas_height_cm,
                     "stroke_width_cm": inst.stroke_width_cm,
-                    "lines": lines
+                    "lines": lines,
+                    "paused": inst.paused
                 })
             })
             .collect();
@@ -200,6 +201,24 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<ViewerState>) {
                             };
                             if let Some(action) = action {
                                 tracing::info!("viewer: {:?} {}", action, label);
+                                // Track paused state server-side so new clients get correct state
+                                let is_pause = matches!(action, ControlAction::Pause);
+                                let is_play = matches!(action, ControlAction::Play);
+                                if is_pause || is_play {
+                                    let mut instances = state.instances.lock().unwrap();
+                                    match &target {
+                                        Some(name) => {
+                                            if let Some(inst) = instances.get_mut(name) {
+                                                inst.paused = is_pause;
+                                            }
+                                        }
+                                        None => {
+                                            for inst in instances.values_mut() {
+                                                inst.paused = is_pause;
+                                            }
+                                        }
+                                    }
+                                }
                                 let _ = control_tx.send(ControlCmd {
                                     command: action,
                                     target,

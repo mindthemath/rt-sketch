@@ -31,6 +31,7 @@ pub struct InstanceInfo {
     pub canvas_height_cm: f32,
     pub stroke_width_cm: f32,
     pub lines: Vec<Line>,
+    pub paused: bool,
 }
 
 /// Events broadcast to WebSocket clients.
@@ -128,13 +129,16 @@ async fn handle_connection(
     let canvas_width_cm = f32::from_le_bytes(payload[offset..offset + 4].try_into()?);
     let canvas_height_cm = f32::from_le_bytes(payload[offset + 4..offset + 8].try_into()?);
     let stroke_width_cm = f32::from_le_bytes(payload[offset + 8..offset + 12].try_into()?);
+    // Running flag is optional for backwards compatibility with older workers
+    let running = payload.get(offset + 12).copied().unwrap_or(0) != 0;
 
     tracing::info!(
-        "instance \"{}\" connected: {:.1}x{:.1} cm, stroke {:.3} cm",
+        "instance \"{}\" connected: {:.1}x{:.1} cm, stroke {:.3} cm, running: {}",
         name,
         canvas_width_cm,
         canvas_height_cm,
-        stroke_width_cm
+        stroke_width_cm,
+        running
     );
 
     // Register instance
@@ -148,6 +152,7 @@ async fn handle_connection(
                 canvas_height_cm,
                 stroke_width_cm,
                 lines: Vec::new(),
+                paused: !running,
             },
         );
     }
