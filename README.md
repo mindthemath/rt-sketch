@@ -63,16 +63,29 @@ The canvas aspect ratio is automatically adjusted to match the source (fit withi
 | `--gamma` | `1.0` | Gamma correction for target image. <1 brightens, >1 darkens |
 | `--min-line-len` | `0.2` | Minimum line length in cm |
 | `--max-line-len` | `5.0` | Maximum line length in cm |
-| `--x-sampler` | `uniform` | X position distribution: `uniform`, `center`, `edges`, `low`, `high`, or `beta:a,b` |
-| `--y-sampler` | `uniform` | Y position distribution (same options) |
-| `--length-sampler` | `uniform` | Line length distribution (same options) |
+| `--x-sampler` | `uniform` | X position distribution (see below) |
+| `--y-sampler` | `uniform` | Y position distribution (see below) |
+| `--length-sampler` | `uniform` | Line length distribution (see below) |
+
+#### Sampler distributions
+
+All preset modes use a Beta(a, b) distribution mapped to [0, 1]:
+
+| Name | a | b | Bias |
+|------|---|---|------|
+| `uniform` | — | — | Flat / no bias |
+| `center` | 2 | 2 | Concentrate toward the middle |
+| `edges` | 0.5 | 0.5 | Concentrate at both extremes |
+| `low` | 10 | 2 | Concentrate toward 0 (left / top / short) |
+| `high` | 2 | 10 | Concentrate toward 1 (right / bottom / long) |
+| `beta:a,b` | a | b | Custom Beta distribution |
 
 ### Robot and network options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--robot-server` | *(none)* | Robot server URL (omit for preview-only mode) |
-| `--web-port` | `8080` | Web UI port |
+| `--web-port` | `8080` | Web UI port (auto-selects next available if default is busy; exits if explicit port is busy) |
 
 ## Web UI
 

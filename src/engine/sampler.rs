@@ -32,12 +32,12 @@ impl Distribution {
                 beta: 0.5,
             }),
             "low" => Ok(Distribution::Beta {
-                alpha: 2.0,
-                beta: 10.0,
-            }),
-            "high" => Ok(Distribution::Beta {
                 alpha: 10.0,
                 beta: 2.0,
+            }),
+            "high" => Ok(Distribution::Beta {
+                alpha: 2.0,
+                beta: 10.0,
             }),
             s if s.starts_with("beta:") => {
                 let params = &s[5..];

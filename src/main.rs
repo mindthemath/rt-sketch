@@ -79,13 +79,40 @@ async fn main() {
 
     // Start web server
     let web_state = state.clone();
-    let web_port = args.web_port;
+    let explicit_port = args.web_port;
+    let default_port = 8080u16;
+    let listener = {
+        let port = explicit_port.unwrap_or(default_port);
+        match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await {
+            Ok(l) => l,
+            Err(e) if explicit_port.is_some() => {
+                eprintln!("error: cannot bind to port {}: {}", port, e);
+                std::process::exit(1);
+            }
+            Err(_) => {
+                // Auto-select: try ports above the default
+                let mut found = None;
+                for p in (default_port + 1)..=(default_port + 100) {
+                    if let Ok(l) = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", p)).await {
+                        found = Some(l);
+                        break;
+                    }
+                }
+                found.unwrap_or_else(|| {
+                    eprintln!(
+                        "error: could not find an available port in range {}-{}",
+                        default_port,
+                        default_port + 100
+                    );
+                    std::process::exit(1);
+                })
+            }
+        }
+    };
+    let actual_port = listener.local_addr().unwrap().port();
+    tracing::info!("web UI: http://localhost:{}", actual_port);
     tokio::spawn(async move {
         let app = web::build_router(web_state);
-        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", web_port))
-            .await
-            .expect("failed to bind web server port");
-        tracing::info!("web UI: http://localhost:{}", web_port);
         axum::serve(listener, app).await.unwrap();
     });
 

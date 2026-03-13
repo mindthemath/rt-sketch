@@ -48,9 +48,9 @@ pub struct Args {
     #[arg(long)]
     pub robot_server: Option<String>,
 
-    /// Web UI port
-    #[arg(long, default_value_t = 8080)]
-    pub web_port: u16,
+    /// Web UI port (auto-selects if default 8080 is busy)
+    #[arg(long)]
+    pub web_port: Option<u16>,
 
     /// Pen stroke width in cm
     #[arg(long, default_value_t = 0.05)]
