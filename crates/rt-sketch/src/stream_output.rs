@@ -56,8 +56,8 @@ impl StreamOutput {
         cmd.arg(dest);
 
         cmd.stdin(Stdio::piped())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
 
         tracing::info!("spawning stream ffmpeg: {:?}", cmd);
 

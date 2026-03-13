@@ -155,7 +155,9 @@ fn build_ffmpeg_cmd(source: &str, target_width: u32, target_height: u32, fps: f6
         .arg("rawvideo")
         .arg("pipe:1");
 
-    cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
     cmd
 }
 
