@@ -56,6 +56,16 @@ snap:
 devhelp:
 	cargo run --bin rt-sketch -- --help
 
+streamA:
+	cargo run --release --bin rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start
+
+## help: Show this help
+streamB:
+	cargo run --release --bin rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start
+
+viewer:
+	cargo run --release --bin rt-viewer
+
 ## help: Show this help
 help:
 	@echo "rt-sketch — real-time video-to-SVG sketch engine"
