@@ -405,6 +405,9 @@ fn engine_loop(
                         }
                     }
                     *state.running.lock().unwrap() = true;
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_state(true);
+                    }
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
                         canvas_png: None,
@@ -423,6 +426,9 @@ fn engine_loop(
                 }
                 "pause" => {
                     *state.running.lock().unwrap() = false;
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_state(false);
+                    }
                     // Send final preview so the UI shows the latest canvas state
                     let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
                     let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);

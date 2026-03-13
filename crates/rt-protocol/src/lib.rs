@@ -9,6 +9,7 @@ pub const HEADER_SIZE: usize = 12;
 pub const MSG_HELLO: u32 = 0;
 pub const MSG_LINE: u32 = 1;
 pub const MSG_RESET: u32 = 2;
+pub const MSG_STATE: u32 = 6; // payload: 1 byte (0 = paused, 1 = running)
 
 // Commands sent from viewer -> worker
 pub const CMD_PLAY: u32 = 3;

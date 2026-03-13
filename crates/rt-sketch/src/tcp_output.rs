@@ -8,7 +8,7 @@ use crate::engine::canvas::LineSegment;
 
 use rt_protocol::{
     build_cmd, build_header, parse_header, CMD_PAUSE, CMD_PLAY, CMD_RESET_ALL, HEADER_SIZE,
-    MSG_HELLO, MSG_LINE, MSG_RESET,
+    MSG_HELLO, MSG_LINE, MSG_RESET, MSG_STATE,
 };
 
 /// Commands received from the viewer.
@@ -220,6 +220,18 @@ impl TcpOutput {
             stream.set_nonblocking(false).ok();
         }
         cmds
+    }
+
+    pub fn send_state(&mut self, running: bool) {
+        if let Some(ref mut stream) = self.stream {
+            let mut buf = [0u8; HEADER_SIZE + 1];
+            buf[0..HEADER_SIZE].copy_from_slice(&build_header(MSG_STATE, 1));
+            buf[HEADER_SIZE] = if running { 1 } else { 0 };
+            if let Err(e) = stream.write_all(&buf) {
+                tracing::warn!("TCP write failed: {}, will reconnect", e);
+                self.stream = None;
+            }
+        }
     }
 
     pub fn send_reset(&mut self) {

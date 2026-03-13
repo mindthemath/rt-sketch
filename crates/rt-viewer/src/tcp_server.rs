@@ -8,7 +8,7 @@ use tokio::sync::broadcast;
 
 use rt_protocol::{
     build_cmd, parse_header, CMD_PAUSE, CMD_PLAY, CMD_RESET_ALL, HEADER_SIZE, MSG_HELLO, MSG_LINE,
-    MSG_RESET,
+    MSG_RESET, MSG_STATE,
 };
 
 /// A line segment in canvas coordinates (cm).
@@ -262,6 +262,23 @@ async fn message_loop(
 
                 let _ = state.event_tx.send(ViewerEvent::Reset {
                     name: name.to_string(),
+                });
+            }
+            MSG_STATE => {
+                let mut payload = [0u8; 1];
+                stream.read_exact(&mut payload).await?;
+                let paused = payload[0] == 0;
+
+                {
+                    let mut instances = state.instances.lock().unwrap();
+                    if let Some(instance) = instances.get_mut(name) {
+                        instance.paused = paused;
+                    }
+                }
+
+                let _ = state.event_tx.send(ViewerEvent::State {
+                    name: name.to_string(),
+                    paused,
                 });
             }
             _ => {
