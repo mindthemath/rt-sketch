@@ -16,8 +16,9 @@ A built-in web UI lets you watch the drawing evolve in real time and tune parame
 # Webcam (default)
 rt-sketch
 
-# Static image
+# Static image (local or remote)
 rt-sketch --source image:photo.jpg
+rt-sketch --source image:https://example.com/photo.jpg
 
 # With a drawing robot
 rt-sketch --source webcam --robot-server http://192.168.1.50:8080
@@ -35,7 +36,7 @@ rt-sketch [OPTIONS]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--source` | `webcam` | Input source: `webcam`, `webcam:1`, `image:path.jpg`, or `video:path.mp4` |
+| `--source` | `webcam` | Input source: `webcam`, `webcam:1`, `image:path.jpg`, `image:https://...`, or `video:path.mp4` |
 | `--fps` | `6.0` | Target frames per second (lower = less CPU for live sources) |
 | `--resolution` | `256` | Processing resolution height in pixels |
 
