@@ -33,10 +33,10 @@ impl Distribution {
             }),
             "low" => Ok(Distribution::Beta {
                 alpha: 2.0,
-                beta: 5.0,
+                beta: 10.0,
             }),
             "high" => Ok(Distribution::Beta {
-                alpha: 5.0,
+                alpha: 10.0,
                 beta: 2.0,
             }),
             s if s.starts_with("beta:") => {
