@@ -42,6 +42,14 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Base64 encoding for websocket image data
 base64 = "0.22"
 
+[[bin]]
+name = "rt-sketch"
+path = "src/main.rs"
+
+[[bin]]
+name = "draw_curves"
+path = "src/bin/draw_curves.rs"
+
 [profile.release]
 opt-level = 3
 lto = "thin"
