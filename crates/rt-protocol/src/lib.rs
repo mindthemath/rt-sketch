@@ -45,3 +45,40 @@ pub fn build_header(msg_type: u32, payload_len: u32) -> [u8; HEADER_SIZE] {
 pub fn build_cmd(msg_type: u32) -> [u8; HEADER_SIZE] {
     build_header(msg_type, 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn round_trip_header() {
+        let header = build_header(MSG_LINE, 42);
+        let parsed = parse_header(&header).unwrap();
+        assert_eq!(parsed.msg_type, MSG_LINE);
+        assert_eq!(parsed.payload_len, 42);
+    }
+
+    #[test]
+    fn build_cmd_has_zero_payload() {
+        let header = build_cmd(CMD_PAUSE);
+        let parsed = parse_header(&header).unwrap();
+        assert_eq!(parsed.msg_type, CMD_PAUSE);
+        assert_eq!(parsed.payload_len, 0);
+    }
+
+    #[test]
+    fn invalid_magic_rejected() {
+        let mut buf = build_header(MSG_HELLO, 0);
+        buf[0] = b'X';
+        assert!(parse_header(&buf).is_err());
+    }
+
+    #[test]
+    fn all_message_types_round_trip() {
+        for &msg in &[MSG_HELLO, MSG_LINE, MSG_RESET, MSG_STATE, CMD_PLAY, CMD_PAUSE, CMD_RESET_ALL] {
+            let header = build_header(msg, 100);
+            let parsed = parse_header(&header).unwrap();
+            assert_eq!(parsed.msg_type, msg);
+        }
+    }
+}
