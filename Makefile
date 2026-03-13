@@ -120,3 +120,6 @@ help:
 unlock:
 	pass git-crypt/rt-sketch | base64 -d 2>/dev/null | git-crypt unlock -
 
+test-release:
+	gh workflow run release.yml --ref "$$(git branch --show-current)"
+
