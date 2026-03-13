@@ -25,11 +25,11 @@ run-image: build
 
 ## dev: Run in debug mode with a test image
 dev:
-	cargo run -- --source image:$(IMAGE)
+	cargo run --bin rt-sketch -- --source image:$(IMAGE)
 
 ## dev-webcam: Run in debug mode with webcam
 dev-webcam:
-	cargo run -- --source webcam:0
+	cargo run --bin rt-sketch -- --source webcam:0
 
 ## check: Run clippy and tests
 check: fmt
@@ -54,7 +54,7 @@ snap:
 	@echo "Saved webcam frame to $(IMAGE)"
 
 devhelp:
-	cargo run -- --help
+	cargo run --bin rt-sketch -- --help
 
 ## help: Show this help
 help:

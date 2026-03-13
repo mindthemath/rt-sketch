@@ -1,0 +1,105 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #111;
+    color: #ddd;
+    font-family: monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid #333;
+}
+
+header h1 {
+    font-size: 14px;
+    font-weight: normal;
+    color: #888;
+}
+
+.status {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.status.connected {
+    color: #6f6;
+    border: 1px solid #6f6;
+}
+
+.status.disconnected {
+    color: #f66;
+    border: 1px solid #f66;
+}
+
+main {
+    flex: 1;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    align-content: start;
+}
+
+.instance {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.instance.disconnected {
+    opacity: 0.5;
+}
+
+.instance .label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid #333;
+}
+
+.instance .label .name {
+    color: #6f6;
+}
+
+.instance .label .info {
+    color: #666;
+}
+
+.instance .label .disconnected-badge {
+    color: #f66;
+    display: none;
+}
+
+.instance.disconnected .label .disconnected-badge {
+    display: inline;
+}
+
+.instance.disconnected .label .info {
+    display: none;
+}
+
+.instance canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #fff;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 20px;
+    color: #555;
+    font-size: 14px;
+}

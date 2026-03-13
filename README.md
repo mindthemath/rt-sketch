@@ -80,6 +80,17 @@ All preset modes use a Beta(a, b) distribution mapped to [0, 1]:
 | `high` | 2 | 10 | Concentrate toward 1 (right / bottom / long) |
 | `beta:a,b` | a | b | Custom Beta distribution |
 
+### Streaming and recording options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--stream-tcp` | *(none)* | Stream lines to a TCP viewer server (e.g. `192.168.1.10:9900`) |
+| `--stream-name` | `rt-sketch` | Instance name for TCP stream identification |
+| `--stream-output` | *(none)* | Record preview to a file (e.g. `recording.mkv`) |
+| `--stream-url` | *(none)* | Stream preview to an RTMP URL (e.g. `rtmp://a.rtmp.youtube.com/live2/KEY`) |
+
+`--stream-tcp` can be combined with `--stream-output` or `--stream-url`. The latter two are mutually exclusive (both use FFmpeg for video encoding).
+
 ### Robot and network options
 
 | Flag | Default | Description |
@@ -168,6 +179,51 @@ When `--robot-server` is set, accepted lines are POSTed to `{server}/draw` as JS
 
 Coordinates are in canvas cm. Omit `--robot-server` for preview-only mode.
 
+## Multi-instance viewer (rt-viewer)
+
+`rt-viewer` is a separate binary that aggregates line streams from multiple rt-sketch instances and displays them in a browser.
+
+```
+[rt-sketch A] ──TCP──┐
+[rt-sketch B] ──TCP──┤──→ [rt-viewer] ──WebSocket──→ [Browser: canvas per instance]
+[rt-sketch C] ──TCP──┘
+```
+
+### Running the viewer
+
+```bash
+# Start the viewer (TCP on :9900, web UI on :9901)
+cargo run --release --bin rt-viewer
+
+# Connect rt-sketch instances
+cargo run --release --bin rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
+cargo run --release --bin rt-sketch -- --source webcam:1 --stream-tcp localhost:9900 --stream-name "cam-B"
+```
+
+Open **http://localhost:9901** to see all instances drawing in real time.
+
+### Viewer CLI options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tcp-port` | `9900` | TCP port for rt-sketch instances to connect to |
+| `--web-port` | `9901` | Web UI port for the viewer page |
+
+### How it works
+
+Each rt-sketch instance sends individual line segments over TCP as they're accepted (32 bytes per line — 12-byte header + 5 floats). The viewer maintains a canvas per instance in the browser, drawing lines incrementally via WebSocket. Late-joining browser clients receive a full replay of all accumulated lines.
+
+### Recording + streaming together
+
+TCP streaming and video recording are independent outputs that can run simultaneously:
+
+```bash
+cargo run --release --bin rt-sketch -- \
+  --source webcam \
+  --stream-tcp localhost:9900 --stream-name "cam-A" \
+  --stream-output recording.mkv
+```
+
 ## Webcam selection (macOS)
 
 List available devices:
@@ -190,6 +246,8 @@ rt-sketch --source webcam:1   # USB webcam
 | `make build` | Compile release binary |
 | `make run` | Run with webcam (release) |
 | `make run-image` | Run with a static test image |
+| `make record` | Run with webcam and record to `recording.mkv` |
+| `make record-image` | Run with a static image and record to `recording.mkv` |
 | `make dev` | Run in debug mode with a test image |
 | `make dev-webcam` | Run in debug mode with webcam |
 | `make snap` | Capture a single webcam frame and save as test image |

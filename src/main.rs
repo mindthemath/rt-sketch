@@ -3,6 +3,7 @@ mod engine;
 mod frame_source;
 mod output;
 mod stream_output;
+mod tcp_output;
 mod web;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -135,6 +136,12 @@ async fn main() {
         (None, None) => None,
     };
 
+    // Set up TCP viewer output if requested
+    let tcp_config = args.stream_tcp.clone().map(|addr| {
+        let name = args.stream_name.clone().unwrap_or_else(|| "rt-sketch".to_string());
+        (addr, name)
+    });
+
     // Shutdown flag for graceful Ctrl+C handling
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_signal = shutdown.clone();
@@ -156,6 +163,7 @@ async fn main() {
             control_rx,
             stream_config,
             shutdown,
+            tcp_config,
         );
     })
     .await
@@ -193,9 +201,22 @@ fn engine_loop(
     mut control_rx: mpsc::Receiver<ControlCommand>,
     stream_config: Option<StreamConfig>,
     shutdown: Arc<AtomicBool>,
+    tcp_config: Option<(String, String)>,
 ) {
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
+
+    // TCP viewer output — connects immediately if configured
+    let mut tcp_output: Option<tcp_output::TcpOutput> = tcp_config.map(|(addr, name)| {
+        tracing::info!("TCP viewer: {} as \"{}\"", addr, name);
+        tcp_output::TcpOutput::new(
+            &addr,
+            &name,
+            config.canvas_width_cm,
+            config.canvas_height_cm,
+            config.stroke_width_cm,
+        )
+    });
     let pw = config.processing_width();
     let ph = config.resolution;
 
@@ -256,8 +277,9 @@ fn engine_loop(
     loop {
         // Check for graceful shutdown (Ctrl+C)
         if shutdown.load(Ordering::SeqCst) {
-            tracing::info!("engine shutting down, finalizing stream...");
-            drop(stream); // closes stdin, waits for ffmpeg to finalize
+            tracing::info!("engine shutting down, finalizing outputs...");
+            drop(stream);
+            drop(tcp_output);
             tracing::info!("shutdown complete");
             return;
         }
@@ -329,6 +351,9 @@ fn engine_loop(
                     if let Some(s) = stream.take() {
                         tracing::info!("finalizing stream output on reset");
                         drop(s);
+                    }
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_reset();
                     }
                     engine.reset();
                     *state.iteration.lock().unwrap() = 0;
@@ -470,10 +495,13 @@ fn engine_loop(
         // Run one proposal step
         let result = engine.step(&target, current_k);
 
-        // Send winning line to robot
+        // Send winning line to robot and TCP viewer
         if let Some(ref line) = result.winning_line {
             if let Err(e) = sink.send_line(line) {
                 tracing::warn!("failed to send to robot: {}", e);
+            }
+            if let Some(ref mut tcp) = tcp_output {
+                tcp.send_line(line);
             }
         }
 

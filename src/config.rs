@@ -87,6 +87,14 @@ pub struct Args {
     /// Stream preview to a file (e.g. output.mp4)
     #[arg(long)]
     pub stream_output: Option<String>,
+
+    /// Stream lines to a TCP viewer server (e.g. 192.168.1.10:9900)
+    #[arg(long)]
+    pub stream_tcp: Option<String>,
+
+    /// Instance name for TCP stream identification
+    #[arg(long)]
+    pub stream_name: Option<String>,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.
