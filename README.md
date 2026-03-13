@@ -219,29 +219,95 @@ rt-sketch --source webcam \
   --stream-output recording.mkv
 ```
 
-## Distributed setup (shared webcam over network)
+## Distributed setup
 
-When the webcam is on one machine but rt-sketch instances run on others, you can stream the video feed over the network. The `--source video:<url>` flag accepts any URL that ffmpeg understands (`udp://`, `rtsp://`, `http://`, `tcp://`, etc.).
+When the webcam is on one machine but rt-sketch workers run on others, you can stream the video feed over the network. The `--source video:<url>` flag accepts any URL that ffmpeg understands — it's passed straight to `ffmpeg -i`, so anything ffmpeg can read, rt-sketch can use.
 
-### Example: UDP multicast
+Note: `--canvas-width` / `--canvas-height` may need to be set explicitly since ffprobe over a network stream can sometimes fail to detect dimensions.
 
-**Machine A** (has the webcam) — broadcast the feed:
+On Linux, replace `-f avfoundation` with `-f v4l2 -i /dev/video0` in the examples below.
+
+### LAN setup (no internet required)
+
+All machines on the same local network. Best for offline installations or workshops.
+
+```
+[Camera machine] ──UDP multicast──→ [Worker A] ──TCP──┐
+                                    [Worker B] ──TCP──┤──→ [Viewer] ──WebSocket──→ [Browser]
+                                    [Worker C] ──TCP──┘
+```
+
+**Camera machine** — broadcast the webcam feed via UDP multicast:
 ```bash
 ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
   -c:v libx264 -preset ultrafast -tune zerolatency \
   -f mpegts udp://239.0.0.1:1234
 ```
 
-**Machines B and C** (run rt-sketch, stream lines to the viewer):
+**Viewer machine** (can be the camera machine or any other):
+```bash
+rt-viewer
+```
+
+**Worker machines** — consume the multicast feed, stream lines to the viewer:
 ```bash
 rt-sketch --source video:udp://239.0.0.1:1234 \
   --stream-tcp <viewer-ip>:9900 \
-  --stream-name "bot-B"
+  --stream-name "bot-A"
 ```
 
-On Linux, replace `-f avfoundation` with `-f v4l2 -i /dev/video0`.
+UDP multicast is ideal here — zero configuration, any number of workers can join without extra load on the camera machine, and latency is minimal over a local switch.
 
-This works because rt-sketch's frame source is just an ffmpeg subprocess — any input ffmpeg can read, rt-sketch can use. Note that `--canvas-width` / `--canvas-height` may need to be set explicitly since ffprobe over a network stream can sometimes fail to detect dimensions.
+### Remote setup (over the internet via Cloudflare Tunnels)
+
+Camera and viewer on one network, workers on remote machines. Uses [Cloudflare Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to avoid port forwarding or VPNs.
+
+```
+                                                         [Remote Worker A] ──┐
+[Camera] ──TCP──→ [cloudflared] ──tunnel──→ [cloudflared] ──→               │
+                                            [cloudflared] ──→               │
+                                                         [Remote Worker B] ──┤──→ [cloudflared] ──tunnel──→ [Viewer]
+                                                         [Remote Worker C] ──┘
+```
+
+Workers only make outbound connections (to the video feed and viewer tunnels), so they don't need to be publicly accessible or run `cloudflared` tunnels of their own. Use `--auto-start` so they begin drawing immediately without needing the web UI.
+
+UDP doesn't work through Cloudflare Tunnels, so use TCP MPEG-TS for the video feed instead.
+
+**Camera machine** — serve the webcam over TCP:
+```bash
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f mpegts tcp://0.0.0.0:1234?listen
+```
+
+Expose the video feed via a tunnel:
+```bash
+cloudflared tunnel --url tcp://localhost:1234 --name video-feed
+```
+
+**Viewer machine** — run rt-viewer and tunnel both the TCP port and web UI:
+```bash
+rt-viewer
+
+cloudflared tunnel --url tcp://localhost:9900 --name viewer-tcp
+cloudflared tunnel --url http://localhost:9901 --name viewer-web
+```
+
+**Remote worker machines** — forward the tunnels to local ports and run headless:
+```bash
+# Forward tunneled video and viewer to local ports
+cloudflared access tcp --hostname video-feed.your-domain.com --url localhost:5000
+cloudflared access tcp --hostname viewer-tcp.your-domain.com --url localhost:5001
+
+# Run rt-sketch headless — no web UI needed
+rt-sketch --source video:tcp://localhost:5000 \
+  --stream-tcp localhost:5001 \
+  --stream-name "remote-A" \
+  --auto-start
+```
+
+Latency through Cloudflare adds a few milliseconds, which is negligible — the line stream is 32 bytes per update, and the video feed just needs to deliver frames roughly at the target FPS. The algorithm grabs the latest frame whenever it's ready, so jitter doesn't matter.
 
 ## Webcam selection (macOS)
 

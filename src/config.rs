@@ -95,6 +95,10 @@ pub struct Args {
     /// Instance name for TCP stream identification
     #[arg(long)]
     pub stream_name: Option<String>,
+
+    /// Start drawing immediately without waiting for the web UI start button
+    #[arg(long)]
+    pub auto_start: bool,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.

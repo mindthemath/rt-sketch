@@ -154,6 +154,7 @@ async fn main() {
     // Run engine loop in a blocking thread
     let engine_state = state.clone();
     let source_str = args.source.clone();
+    let auto_start = args.auto_start;
     tokio::task::spawn_blocking(move || {
         engine_loop(
             engine_state,
@@ -164,6 +165,7 @@ async fn main() {
             stream_config,
             shutdown,
             tcp_config,
+            auto_start,
         );
     })
     .await
@@ -202,6 +204,7 @@ fn engine_loop(
     stream_config: Option<StreamConfig>,
     shutdown: Arc<AtomicBool>,
     tcp_config: Option<(String, String)>,
+    auto_start: bool,
 ) {
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
@@ -271,7 +274,12 @@ fn engine_loop(
     let mut correction_lut =
         build_correction_lut(current_gamma, current_exposure, current_contrast);
 
-    tracing::info!("engine ready, waiting for start command...");
+    if auto_start {
+        *state.running.lock().unwrap() = true;
+        tracing::info!("engine ready, auto-starting");
+    } else {
+        tracing::info!("engine ready, waiting for start command...");
+    }
 
     // Main loop
     loop {
