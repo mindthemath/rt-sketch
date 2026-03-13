@@ -1,6 +1,49 @@
 (() => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    // --- localStorage persistence ---
+    const STORAGE_KEY = "rt-sketch-settings";
 
+    function saveSettings() {
+        const settings = {};
+        for (const id of ["slider-k", "slider-min-len", "slider-max-len", "slider-alpha", "slider-gamma", "slider-target-size"]) {
+            const el = document.getElementById(id);
+            if (el) settings[id] = el.value;
+        }
+        for (const id of ["radio-x-sampler", "radio-y-sampler", "radio-length-sampler"]) {
+            const checked = document.querySelector(`#${id} input[type=radio]:checked`);
+            if (checked) settings[id] = checked.value;
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    }
+
+    function restoreSettings() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        try {
+            const settings = JSON.parse(raw);
+            for (const id of ["slider-k", "slider-min-len", "slider-max-len", "slider-alpha", "slider-gamma", "slider-target-size"]) {
+                if (settings[id] !== undefined) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = settings[id];
+                }
+            }
+            for (const id of ["radio-x-sampler", "radio-y-sampler", "radio-length-sampler"]) {
+                if (settings[id] !== undefined) {
+                    const group = document.getElementById(id);
+                    if (!group) continue;
+                    const radio = group.querySelector(`input[value="${settings[id]}"]`);
+                    if (radio) {
+                        radio.checked = true;
+                        group.querySelectorAll("label").forEach(l => l.classList.remove("active"));
+                        radio.parentElement.classList.add("active");
+                    }
+                }
+            }
+        } catch (e) { /* ignore corrupt data */ }
+    }
+
+    restoreSettings();
+
+    // DOM refs
     const targetImg = document.getElementById("target-img");
     const canvasImg = document.getElementById("canvas-img");
     const previewImg = document.getElementById("preview-img");
@@ -19,7 +62,6 @@
 
     const sliderK = document.getElementById("slider-k");
     const valK = document.getElementById("val-k");
-
     const sliderMinLen = document.getElementById("slider-min-len");
     const valMinLen = document.getElementById("val-min-len");
     const sliderMaxLen = document.getElementById("slider-max-len");
@@ -28,6 +70,18 @@
     const valAlpha = document.getElementById("val-alpha");
     const sliderGamma = document.getElementById("slider-gamma");
     const valGamma = document.getElementById("val-gamma");
+    const sliderTargetSize = document.getElementById("slider-target-size");
+    const valTargetSize = document.getElementById("val-target-size");
+    const targetImgWrapper = document.querySelector(".target-img-wrapper");
+
+    // Sync display labels with (possibly restored) slider values
+    valK.textContent = sliderK.value;
+    valMinLen.textContent = parseFloat(sliderMinLen.value).toFixed(1);
+    valMaxLen.textContent = parseFloat(sliderMaxLen.value).toFixed(1);
+    valAlpha.textContent = parseInt(sliderAlpha.value, 10);
+    valGamma.textContent = parseFloat(sliderGamma.value).toFixed(1);
+    valTargetSize.textContent = sliderTargetSize.value;
+    targetImgWrapper.style.setProperty("--target-size", sliderTargetSize.value + "%");
 
     function showImg(img, placeholder) {
         img.style.display = "block";
@@ -64,6 +118,29 @@
     function updateToggleButton() {
         btnToggle.textContent = isRunning ? "Pause" : (hasStarted ? "Resume" : "Start");
     }
+
+    // --- WebSocket ---
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+
+    function send(command, value) {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ command, value }));
+        }
+    }
+
+    // On connect, push all restored settings to the server
+    ws.onopen = () => {
+        send("set_k", parseInt(sliderK.value, 10));
+        send("set_min_len", parseFloat(sliderMinLen.value));
+        send("set_max_len", parseFloat(sliderMaxLen.value));
+        send("set_alpha", parseFloat(sliderAlpha.value));
+        send("set_gamma", parseFloat(sliderGamma.value));
+
+        for (const [groupId, cmd] of [["radio-x-sampler", "set_x_sampler"], ["radio-y-sampler", "set_y_sampler"], ["radio-length-sampler", "set_length_sampler"]]) {
+            const checked = document.querySelector(`#${groupId} input[type=radio]:checked`);
+            if (checked) send(cmd, checked.value);
+        }
+    };
 
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
@@ -126,12 +203,7 @@
         console.log("WebSocket closed");
     };
 
-    function send(command, value) {
-        if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ command, value }));
-        }
-    }
-
+    // --- Controls ---
     function togglePlayPause() {
         if (isRunning) {
             send("pause");
@@ -156,9 +228,9 @@
     sliderK.addEventListener("input", () => {
         valK.textContent = sliderK.value;
         send("set_k", parseInt(sliderK.value, 10));
+        saveSettings();
     });
 
-    // Line length sliders — clamp min <= max
     sliderMinLen.addEventListener("input", () => {
         let min = parseFloat(sliderMinLen.value);
         let max = parseFloat(sliderMaxLen.value);
@@ -169,6 +241,7 @@
         }
         valMinLen.textContent = min.toFixed(1);
         send("set_min_len", min);
+        saveSettings();
     });
 
     sliderMaxLen.addEventListener("input", () => {
@@ -181,16 +254,19 @@
         }
         valMaxLen.textContent = max.toFixed(1);
         send("set_max_len", max);
+        saveSettings();
     });
 
     sliderAlpha.addEventListener("input", () => {
         valAlpha.textContent = parseInt(sliderAlpha.value, 10);
         send("set_alpha", parseFloat(sliderAlpha.value));
+        saveSettings();
     });
 
     sliderGamma.addEventListener("input", () => {
         valGamma.textContent = parseFloat(sliderGamma.value).toFixed(1);
         send("set_gamma", parseFloat(sliderGamma.value));
+        saveSettings();
     });
 
     // Sampler radio groups
@@ -201,6 +277,7 @@
                 group.querySelectorAll("label").forEach(l => l.classList.remove("active"));
                 e.target.parentElement.classList.add("active");
                 send(command, e.target.value);
+                saveSettings();
             }
         });
     }
@@ -208,14 +285,10 @@
     setupRadioGroup("radio-y-sampler", "set_y_sampler");
     setupRadioGroup("radio-length-sampler", "set_length_sampler");
 
-    // Target image display size (purely visual, no server command)
-    const sliderTargetSize = document.getElementById("slider-target-size");
-    const valTargetSize = document.getElementById("val-target-size");
-    const targetImgWrapper = document.querySelector(".target-img-wrapper");
-
     sliderTargetSize.addEventListener("input", () => {
         const pct = sliderTargetSize.value;
         valTargetSize.textContent = pct;
         targetImgWrapper.style.setProperty("--target-size", pct + "%");
+        saveSettings();
     });
 })();
