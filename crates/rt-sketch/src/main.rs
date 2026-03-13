@@ -37,6 +37,15 @@ async fn main() {
         .init();
 
     let args = Args::parse();
+
+    if let Some(threads) = args.threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .expect("failed to configure rayon thread pool");
+        tracing::info!("rayon thread pool: {} threads", threads);
+    }
+
     let mut config = Config::from_args(&args);
 
     // Probe source to fit canvas to its aspect ratio

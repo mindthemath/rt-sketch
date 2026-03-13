@@ -95,6 +95,7 @@ All preset modes use a Beta(a, b) distribution mapped to [0, 1]:
 | `--stream-url` | *(none)* | Stream preview to an RTMP URL (e.g. `rtmp://a.rtmp.youtube.com/live2/KEY`) |
 | `--auto-start` | `false` | Start drawing immediately without waiting for the web UI |
 | `--wait-for-viewer` | `false` | Block until the viewer is reachable before starting (requires `--stream-tcp`) |
+| `--threads` | *(all cores)* | Number of threads for parallel proposal scoring. Lower values allow packing more instances per machine |
 
 `--stream-tcp` can be combined with `--stream-output` or `--stream-url`. The latter two are mutually exclusive (both use FFmpeg for video encoding).
 

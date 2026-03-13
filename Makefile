@@ -4,6 +4,7 @@
 IMAGE ?= test.jpg
 DEVICE ?= 0
 FPS ?= 24
+THREADS ?= 2
 
 ## build: Compile release binary
 build:
@@ -57,11 +58,11 @@ devhelp:
 	cargo run -p rt-sketch -- --help
 
 streamA:
-	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start --threads $(THREADS)
 
 ## help: Show this help
 streamB:
-	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start --threads $(THREADS)
 
 viewer:
 	cargo run --release -p rt-viewer

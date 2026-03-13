@@ -103,6 +103,10 @@ pub struct Args {
     /// Wait for a successful viewer connection before starting (requires --stream-tcp)
     #[arg(long)]
     pub wait_for_viewer: bool,
+
+    /// Number of threads for parallel proposal scoring (default: all cores)
+    #[arg(long)]
+    pub threads: Option<usize>,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.
