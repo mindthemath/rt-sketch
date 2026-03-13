@@ -72,6 +72,14 @@ pub struct Args {
     #[arg(long, default_value_t = 1.0)]
     pub gamma: f64,
 
+    /// Exposure compensation in EV stops. 0 = no change, +1 = 2x brighter, -1 = 2x darker.
+    #[arg(long, default_value_t = 0.0)]
+    pub exposure: f64,
+
+    /// Contrast multiplier. 1.0 = no change, >1 increases contrast, <1 decreases.
+    #[arg(long, default_value_t = 1.0)]
+    pub contrast: f64,
+
     /// Stream preview to an RTMP URL (e.g. rtmp://a.rtmp.youtube.com/live2/KEY)
     #[arg(long)]
     pub stream_url: Option<String>,
@@ -98,6 +106,8 @@ pub struct Config {
     pub max_line_len_cm: f64,
     pub alpha: f64,
     pub gamma: f64,
+    pub exposure: f64,
+    pub contrast: f64,
 }
 
 impl Config {
@@ -117,6 +127,8 @@ impl Config {
             max_line_len_cm: args.max_line_len,
             alpha: args.alpha,
             gamma: args.gamma,
+            exposure: args.exposure,
+            contrast: args.contrast,
         }
     }
 

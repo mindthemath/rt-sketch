@@ -4,7 +4,7 @@
 
     function saveSettings() {
         const settings = {};
-        for (const id of ["slider-k", "slider-min-len", "slider-max-len", "slider-alpha", "slider-gamma", "slider-target-size"]) {
+        for (const id of ["slider-k", "slider-min-len", "slider-max-len", "slider-alpha", "slider-gamma", "slider-exposure", "slider-contrast", "slider-target-size"]) {
             const el = document.getElementById(id);
             if (el) settings[id] = el.value;
         }
@@ -20,7 +20,7 @@
         if (!raw) return;
         try {
             const settings = JSON.parse(raw);
-            for (const id of ["slider-k", "slider-min-len", "slider-max-len", "slider-alpha", "slider-gamma", "slider-target-size"]) {
+            for (const id of ["slider-k", "slider-min-len", "slider-max-len", "slider-alpha", "slider-gamma", "slider-exposure", "slider-contrast", "slider-target-size"]) {
                 if (settings[id] !== undefined) {
                     const el = document.getElementById(id);
                     if (el) el.value = settings[id];
@@ -70,6 +70,10 @@
     const valAlpha = document.getElementById("val-alpha");
     const sliderGamma = document.getElementById("slider-gamma");
     const valGamma = document.getElementById("val-gamma");
+    const sliderExposure = document.getElementById("slider-exposure");
+    const valExposure = document.getElementById("val-exposure");
+    const sliderContrast = document.getElementById("slider-contrast");
+    const valContrast = document.getElementById("val-contrast");
     const sliderTargetSize = document.getElementById("slider-target-size");
     const valTargetSize = document.getElementById("val-target-size");
     const targetImgWrapper = document.querySelector(".target-img-wrapper");
@@ -80,6 +84,8 @@
     valMaxLen.textContent = parseFloat(sliderMaxLen.value).toFixed(1);
     valAlpha.textContent = parseInt(sliderAlpha.value, 10);
     valGamma.textContent = parseFloat(sliderGamma.value).toFixed(1);
+    valExposure.textContent = parseFloat(sliderExposure.value).toFixed(1);
+    valContrast.textContent = parseFloat(sliderContrast.value).toFixed(1);
     valTargetSize.textContent = sliderTargetSize.value;
     targetImgWrapper.style.setProperty("--target-size", sliderTargetSize.value + "%");
 
@@ -135,6 +141,8 @@
         send("set_max_len", parseFloat(sliderMaxLen.value));
         send("set_alpha", parseFloat(sliderAlpha.value));
         send("set_gamma", parseFloat(sliderGamma.value));
+        send("set_exposure", parseFloat(sliderExposure.value));
+        send("set_contrast", parseFloat(sliderContrast.value));
 
         for (const [groupId, cmd] of [["radio-x-sampler", "set_x_sampler"], ["radio-y-sampler", "set_y_sampler"], ["radio-length-sampler", "set_length_sampler"]]) {
             const checked = document.querySelector(`#${groupId} input[type=radio]:checked`);
@@ -266,6 +274,18 @@
     sliderGamma.addEventListener("input", () => {
         valGamma.textContent = parseFloat(sliderGamma.value).toFixed(1);
         send("set_gamma", parseFloat(sliderGamma.value));
+        saveSettings();
+    });
+
+    sliderExposure.addEventListener("input", () => {
+        valExposure.textContent = parseFloat(sliderExposure.value).toFixed(1);
+        send("set_exposure", parseFloat(sliderExposure.value));
+        saveSettings();
+    });
+
+    sliderContrast.addEventListener("input", () => {
+        valContrast.textContent = parseFloat(sliderContrast.value).toFixed(1);
+        send("set_contrast", parseFloat(sliderContrast.value));
         saveSettings();
     });
 

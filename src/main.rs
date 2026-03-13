@@ -162,25 +162,26 @@ async fn main() {
     .unwrap();
 }
 
-/// Build a 256-entry lookup table for gamma correction.
-fn build_gamma_lut(gamma: f64) -> [u8; 256] {
+/// Build a 256-entry combined LUT: exposure → gamma → contrast, all in one pass.
+fn build_correction_lut(gamma: f64, exposure: f64, contrast: f64) -> [u8; 256] {
     let mut lut = [0u8; 256];
-    if (gamma - 1.0).abs() < 1e-6 {
-        // Identity — skip the pow
-        for i in 0..256 {
-            lut[i] = i as u8;
-        }
-    } else {
-        let inv_gamma = 1.0 / gamma;
-        for i in 0..256 {
-            lut[i] = (255.0 * (i as f64 / 255.0).powf(inv_gamma)).round() as u8;
-        }
+    let inv_gamma = 1.0 / gamma;
+    let exp_scale = 2.0_f64.powf(exposure);
+    for i in 0..256 {
+        let mut v = i as f64 / 255.0;
+        // Exposure (EV stops)
+        v *= exp_scale;
+        // Gamma
+        v = v.clamp(0.0, 1.0).powf(inv_gamma);
+        // Contrast (linear around midpoint)
+        v = (v - 0.5) * contrast + 0.5;
+        lut[i] = (v.clamp(0.0, 1.0) * 255.0).round() as u8;
     }
     lut
 }
 
-/// Apply a gamma LUT to a grayscale buffer, returning a new buffer.
-fn apply_gamma(buf: &[u8], lut: &[u8; 256]) -> Vec<u8> {
+/// Apply a correction LUT to a grayscale buffer, returning a new buffer.
+fn apply_correction(buf: &[u8], lut: &[u8; 256]) -> Vec<u8> {
     buf.iter().map(|&p| lut[p as usize]).collect()
 }
 
@@ -242,9 +243,12 @@ fn engine_loop(
     let mut current_k = config.k;
     let target_frame_duration = Duration::from_secs_f64(1.0 / config.fps);
 
-    // Gamma correction LUT — precomputed for O(1) per-pixel cost
+    // Combined correction LUT (exposure → gamma → contrast) — precomputed for O(1) per-pixel cost
     let mut current_gamma = config.gamma;
-    let mut gamma_lut = build_gamma_lut(current_gamma);
+    let mut current_exposure = config.exposure;
+    let mut current_contrast = config.contrast;
+    let mut correction_lut =
+        build_correction_lut(current_gamma, current_exposure, current_contrast);
 
     tracing::info!("engine ready, waiting for start command...");
 
@@ -398,8 +402,25 @@ fn engine_loop(
                 "set_gamma" => {
                     if let Some(v) = cmd.value.and_then(|v| v.as_f64()) {
                         current_gamma = v;
-                        gamma_lut = build_gamma_lut(current_gamma);
+                        correction_lut =
+                            build_correction_lut(current_gamma, current_exposure, current_contrast);
                         tracing::info!("gamma set to {}", v);
+                    }
+                }
+                "set_exposure" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_f64()) {
+                        current_exposure = v;
+                        correction_lut =
+                            build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        tracing::info!("exposure set to {} EV", v);
+                    }
+                }
+                "set_contrast" => {
+                    if let Some(v) = cmd.value.and_then(|v| v.as_f64()) {
+                        current_contrast = v;
+                        correction_lut =
+                            build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        tracing::info!("contrast set to {}", v);
                     }
                 }
                 _ => {}
@@ -420,7 +441,7 @@ fn engine_loop(
             // Send target updates even while paused so camera feed stays live
             if got_new_frame {
                 let raw_target = state.target_frame.lock().unwrap().clone().unwrap();
-                let target = apply_gamma(&raw_target, &gamma_lut);
+                let target = apply_correction(&raw_target, &correction_lut);
                 let target_b64 = web::gray_to_base64_png(&target, pw, ph);
                 let _ = state.update_tx.send(UpdateMessage {
                     msg_type: "target".to_string(),
@@ -444,7 +465,7 @@ fn engine_loop(
         let step_start = Instant::now();
 
         let raw_target = state.target_frame.lock().unwrap().clone().unwrap();
-        let target = apply_gamma(&raw_target, &gamma_lut);
+        let target = apply_correction(&raw_target, &correction_lut);
 
         // Run one proposal step
         let result = engine.step(&target, current_k);
