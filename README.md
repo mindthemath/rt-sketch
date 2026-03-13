@@ -8,23 +8,19 @@ A built-in web UI lets you watch the drawing evolve in real time and tune parame
 
 ## Requirements
 
-- **Rust** (2021 edition)
 - **ffmpeg** — used for video/webcam capture and frame decoding
 
 ## Quick start
 
 ```bash
 # Webcam (default)
-make run
+rt-sketch
 
 # Static image
-make run-image IMAGE=photo.jpg
+rt-sketch --source image:photo.jpg
 
-# Development mode (debug build, static image)
-make dev IMAGE=photo.jpg
-
-# Development mode (debug build, webcam)
-make dev-webcam
+# With a drawing robot
+rt-sketch --source webcam --robot-server http://192.168.1.50:8080
 ```
 
 Then open **http://localhost:8080** in your browser.
@@ -193,11 +189,11 @@ Coordinates are in canvas cm. Omit `--robot-server` for preview-only mode.
 
 ```bash
 # Start the viewer (TCP on :9900, web UI on :9901)
-cargo run --release --bin rt-viewer
+rt-viewer
 
 # Connect rt-sketch instances
-cargo run --release --bin rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
-cargo run --release --bin rt-sketch -- --source webcam:1 --stream-tcp localhost:9900 --stream-name "cam-B"
+rt-sketch --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
+rt-sketch --source webcam:1 --stream-tcp localhost:9900 --stream-name "cam-B"
 ```
 
 Open **http://localhost:9901** to see all instances drawing in real time.
@@ -218,11 +214,34 @@ Each rt-sketch instance sends individual line segments over TCP as they're accep
 TCP streaming and video recording are independent outputs that can run simultaneously:
 
 ```bash
-cargo run --release --bin rt-sketch -- \
-  --source webcam \
+rt-sketch --source webcam \
   --stream-tcp localhost:9900 --stream-name "cam-A" \
   --stream-output recording.mkv
 ```
+
+## Distributed setup (shared webcam over network)
+
+When the webcam is on one machine but rt-sketch instances run on others, you can stream the video feed over the network. The `--source video:<url>` flag accepts any URL that ffmpeg understands (`udp://`, `rtsp://`, `http://`, `tcp://`, etc.).
+
+### Example: UDP multicast
+
+**Machine A** (has the webcam) — broadcast the feed:
+```bash
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f mpegts udp://239.0.0.1:1234
+```
+
+**Machines B and C** (run rt-sketch, stream lines to the viewer):
+```bash
+rt-sketch --source video:udp://239.0.0.1:1234 \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-B"
+```
+
+On Linux, replace `-f avfoundation` with `-f v4l2 -i /dev/video0`.
+
+This works because rt-sketch's frame source is just an ffmpeg subprocess — any input ffmpeg can read, rt-sketch can use. Note that `--canvas-width` / `--canvas-height` may need to be set explicitly since ffprobe over a network stream can sometimes fail to detect dimensions.
 
 ## Webcam selection (macOS)
 
@@ -239,11 +258,19 @@ rt-sketch --source webcam:0   # FaceTime HD Camera
 rt-sketch --source webcam:1   # USB webcam
 ```
 
-## Make targets
+## Building from source
+
+```bash
+# Requires Rust (2021 edition)
+cargo build --release
+# Binaries: target/release/rt-sketch, target/release/rt-viewer
+```
+
+### Make targets
 
 | Target | Description |
 |--------|-------------|
-| `make build` | Compile release binary |
+| `make build` | Compile release binaries |
 | `make run` | Run with webcam (release) |
 | `make run-image` | Run with a static test image |
 | `make record` | Run with webcam and record to `recording.mkv` |
