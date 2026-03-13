@@ -25,11 +25,11 @@ run-image: build
 
 ## dev: Run in debug mode with a test image
 dev:
-	cargo run --bin rt-sketch -- --source image:$(IMAGE)
+	cargo run -p rt-sketch -- --source image:$(IMAGE)
 
 ## dev-webcam: Run in debug mode with webcam
 dev-webcam:
-	cargo run --bin rt-sketch -- --source webcam:0
+	cargo run -p rt-sketch -- --source webcam:0
 
 ## check: Run clippy and tests
 check: fmt
@@ -54,17 +54,17 @@ snap:
 	@echo "Saved webcam frame to $(IMAGE)"
 
 devhelp:
-	cargo run --bin rt-sketch -- --help
+	cargo run -p rt-sketch -- --help
 
 streamA:
-	cargo run --release --bin rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start
 
 ## help: Show this help
 streamB:
-	cargo run --release --bin rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start
 
 viewer:
-	cargo run --release --bin rt-viewer
+	cargo run --release -p rt-viewer
 
 webcam-macos:
 	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \

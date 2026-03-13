@@ -1,61 +1,6 @@
 [workspace]
-members = [".", "crates/rt-protocol"]
+members = ["crates/rt-protocol", "crates/rt-sketch", "crates/rt-viewer"]
 resolver = "2"
-
-[package]
-name = "rt-sketch"
-version = "0.1.0"
-edition = "2021"
-description = "Real-time video-to-SVG sketch engine for drawing robots"
-
-[dependencies]
-# Shared protocol
-rt-protocol = { path = "crates/rt-protocol" }
-
-# CLI
-clap = { version = "4", features = ["derive"] }
-
-# Async runtime + web server
-tokio = { version = "1", features = ["full"] }
-axum = { version = "0.7", features = ["ws"] }
-tower-http = { version = "0.5", features = ["cors", "fs"] }
-
-# Rasterization
-tiny-skia = "0.11"
-
-# Parallelism
-rayon = "1.10"
-
-# RNG
-fastrand = "2"
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# Image loading
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-
-# Embed static files
-rust-embed = "8"
-
-# HTTP client (for robot server)
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
-
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Base64 encoding for websocket image data
-base64 = "0.22"
-
-[[bin]]
-name = "rt-sketch"
-path = "src/main.rs"
-
-[[bin]]
-name = "rt-viewer"
-path = "src/viewer/main.rs"
 
 [profile.release]
 opt-level = 3

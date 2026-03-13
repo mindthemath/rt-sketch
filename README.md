@@ -442,6 +442,10 @@ rt-sketch --source webcam:1   # USB webcam
 # Requires Rust (2021 edition)
 cargo build --release
 # Binaries: target/release/rt-sketch, target/release/rt-viewer
+
+# Build/run a single package
+cargo run --release -p rt-sketch -- --help
+cargo run --release -p rt-viewer -- --help
 ```
 
 ### Make targets

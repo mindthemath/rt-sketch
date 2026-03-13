@@ -1274,6 +1274,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rt-viewer"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "clap",
+ "rt-protocol",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rust-embed"
 version = "8.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
