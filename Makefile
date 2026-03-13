@@ -1,4 +1,4 @@
-.PHONY: build run run-image dev check test clean clean-examples fmt help snap draw-basic draw-piecewise examples
+.PHONY: build run run-image run-image-remote dev check test clean clean-examples fmt help snap draw-basic draw-piecewise examples
 
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
@@ -23,6 +23,10 @@ record-image: build
 ## run-image: Run with a static test image
 run-image: build
 	./target/release/rt-sketch --source image:$(IMAGE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
+
+## run-image-remote: Run with a remote test image
+run-image-remote: build
+	./target/release/rt-sketch --source image:https://cdn.mindthemath.com/logo-450-cb.png --canvas-height 15 --canvas-width 15 --fps $(FPS)
 
 ## dev: Run in debug mode with a test image
 dev:
