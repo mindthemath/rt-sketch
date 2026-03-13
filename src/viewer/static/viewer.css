@@ -48,6 +48,11 @@ header h1 {
     border-color: #888;
 }
 
+.total-lines {
+    font-size: 12px;
+    color: #666;
+}
+
 .status {
     font-size: 12px;
     padding: 2px 8px;

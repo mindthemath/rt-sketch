@@ -4,6 +4,7 @@ const controlsEl = document.getElementById("controls");
 const btnToggle = document.getElementById("btn-toggle");
 const btnReset = document.getElementById("btn-reset");
 const btnExport = document.getElementById("btn-export");
+const totalLinesEl = document.getElementById("total-lines");
 
 // Map of instance name -> { container, canvas, ctx, lineCount, widthCm, heightCm, strokeCm, running }
 const instances = new Map();
@@ -94,7 +95,7 @@ function createInstance(name, widthCm, heightCm, strokeCm) {
     if (empty) empty.remove();
 
     const ctx = canvas.getContext("2d");
-    const inst = { container, canvas, ctx, label, ctrlBar, toggleBtn: bToggle, name, lineCount: 0, widthCm, heightCm, strokeCm, running: false, lines: [] };
+    const inst = { container, canvas, ctx, label, ctrlBar, toggleBtn: bToggle, name, lineCount: 0, totalLengthCm: 0, widthCm, heightCm, strokeCm, running: false, lines: [] };
     resizeCanvas(inst);
     clearCanvas(inst);
 
@@ -124,6 +125,7 @@ function clearCanvas(inst) {
     inst.ctx.fillStyle = "#fff";
     inst.ctx.fillRect(0, 0, inst.canvas.width, inst.canvas.height);
     inst.lineCount = 0;
+    inst.totalLengthCm = 0;
     inst.lines = [];
     updateInfo(inst);
 }
@@ -138,14 +140,33 @@ function drawLine(inst, x1, y1, x2, y2, width) {
     ctx.moveTo(x1 * s, y1 * s);
     ctx.lineTo(x2 * s, y2 * s);
     ctx.stroke();
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    inst.totalLengthCm += Math.sqrt(dx * dx + dy * dy);
     inst.lineCount++;
     inst.lines.push({ x1, y1, x2, y2, width });
     updateInfo(inst);
 }
 
+function formatLength(cm) {
+    if (cm >= 100) return (cm / 100).toFixed(1) + " m";
+    return cm.toFixed(1) + " cm";
+}
+
 function updateInfo(inst) {
     const info = inst.label.querySelector(".info");
-    info.textContent = inst.lineCount + " lines";
+    info.textContent = inst.lineCount + " lines · " + formatLength(inst.totalLengthCm);
+    updateTotalLines();
+}
+
+function updateTotalLines() {
+    let totalCount = 0;
+    let totalLen = 0;
+    for (const inst of instances.values()) {
+        totalCount += inst.lineCount;
+        totalLen += inst.totalLengthCm;
+    }
+    totalLinesEl.textContent = totalCount + " lines · " + formatLength(totalLen);
 }
 
 function disconnectInstance(name) {
