@@ -154,8 +154,12 @@ impl TcpOutput {
     }
 
     /// Non-blocking poll for commands from the viewer.
+    /// Also attempts to reconnect if disconnected.
     pub fn poll_commands(&mut self) -> Vec<ViewerCommand> {
         let mut cmds = Vec::new();
+        if self.stream.is_none() {
+            self.try_connect();
+        }
         let Some(ref mut stream) = self.stream else {
             return cmds;
         };
