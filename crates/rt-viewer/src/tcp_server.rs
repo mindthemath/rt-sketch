@@ -90,7 +90,10 @@ pub async fn accept_loop(listener: TcpListener, state: Arc<ViewerState>) {
                 let state = state.clone();
                 tokio::spawn(async move {
                     if let Err(e) = handle_connection(stream, state).await {
-                        tracing::warn!("TCP connection error: {}", e);
+                        let msg = e.to_string();
+                        if !msg.contains("eof") {
+                            tracing::warn!("TCP connection error: {}", e);
+                        }
                     }
                 });
             }
