@@ -35,7 +35,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 rust-embed = "8"
 
 # HTTP client (for robot server)
-reqwest = { version = "0.13", features = ["json", "blocking"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "blocking"] }
 
 # Logging
 tracing = "0.1"

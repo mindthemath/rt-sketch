@@ -448,6 +448,18 @@ rt-sketch --source webcam:0   # FaceTime HD Camera
 rt-sketch --source webcam:1   # USB webcam
 ```
 
+## HTTPS for robot server
+
+By default, rt-sketch builds without TLS support — the robot server HTTP client (`--robot-server`) only supports plain HTTP. This is fine for LAN setups where the robot is on the same network.
+
+If you need HTTPS (e.g. robot server behind a Cloudflare tunnel), add the `rustls` feature to reqwest in `crates/rt-sketch/Cargo.toml`:
+
+```toml
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "blocking"] }
+```
+
+This adds TLS support with no code changes. Note: `rustls` pulls in `aws-lc-sys`, which requires CMake at build time.
+
 ## Building from source
 
 ```bash
