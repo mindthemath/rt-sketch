@@ -11,7 +11,7 @@ build:
 
 ## run: Run with webcam (default args)
 run: build
-	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
+	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 20 --canvas-width 20 --fps $(FPS)
 
 record: build
 	./target/release/rt-sketch --source webcam:0 --stream-output recording.mkv --fps $(FPS) --canvas-width 20 --canvas-height 20
