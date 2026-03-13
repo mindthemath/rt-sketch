@@ -20,6 +20,9 @@ rt-sketch
 rt-sketch --source image:photo.jpg
 rt-sketch --source image:https://example.com/photo.jpg
 
+# Video file
+rt-sketch --source video:clip.mp4
+
 # With a drawing robot
 rt-sketch --source webcam --robot-server http://192.168.1.50:8080
 ```
@@ -39,6 +42,11 @@ rt-sketch [OPTIONS]
 | `--source` | `webcam` | Input source: `webcam`, `webcam:1`, `image:path.jpg`, `image:https://...`, or `video:path.mp4` |
 | `--fps` | `6.0` | Target frames per second (lower = less CPU for live sources) |
 | `--resolution` | `256` | Processing resolution height in pixels |
+
+**Source behavior by type:**
+- **image** — decoded once. The algorithm draws against this single frame indefinitely with no ongoing ffmpeg overhead.
+- **video** — plays through the file at the target FPS. When the video ends, it loops from the beginning automatically. The drawing is not reset between loops — the canvas keeps accumulating lines as the target frame changes.
+- **webcam** — captures live frames continuously. The algorithm always draws against the most recent frame.
 
 ### Canvas options
 
