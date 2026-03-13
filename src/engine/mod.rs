@@ -92,6 +92,11 @@ impl ProposalEngine {
         &self.cached_pixmap
     }
 
+    /// Get raw RGBA pixel data of the preview pixmap.
+    pub fn preview_pixmap_data(&self) -> &[u8] {
+        self.preview_pixmap.data()
+    }
+
     /// Encode the cached preview pixmap as a PNG.
     pub fn preview_png(&self) -> Vec<u8> {
         self.preview_pixmap

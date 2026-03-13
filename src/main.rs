@@ -2,8 +2,10 @@ mod config;
 mod engine;
 mod frame_source;
 mod output;
+mod stream_output;
 mod web;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -12,6 +14,12 @@ use clap::Parser;
 use tokio::sync::{broadcast, mpsc};
 
 use config::{Args, Config};
+
+/// Deferred stream configuration — FFmpeg is spawned on first "start".
+enum StreamConfig {
+    Url(String),
+    File(String),
+}
 use engine::canvas::Canvas;
 use engine::ProposalEngine;
 use frame_source::FrameSource;
@@ -116,11 +124,39 @@ async fn main() {
         axum::serve(listener, app).await.unwrap();
     });
 
+    // Validate stream flags
+    let stream_config = match (&args.stream_url, &args.stream_output) {
+        (Some(_), Some(_)) => {
+            eprintln!("error: cannot use both --stream-url and --stream-output");
+            std::process::exit(1);
+        }
+        (Some(url), None) => Some(StreamConfig::Url(url.clone())),
+        (None, Some(path)) => Some(StreamConfig::File(path.clone())),
+        (None, None) => None,
+    };
+
+    // Shutdown flag for graceful Ctrl+C handling
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_signal = shutdown.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        tracing::info!("Ctrl+C received, shutting down...");
+        shutdown_signal.store(true, Ordering::SeqCst);
+    });
+
     // Run engine loop in a blocking thread
     let engine_state = state.clone();
     let source_str = args.source.clone();
     tokio::task::spawn_blocking(move || {
-        engine_loop(engine_state, &source_str, config, sink, control_rx);
+        engine_loop(
+            engine_state,
+            &source_str,
+            config,
+            sink,
+            control_rx,
+            stream_config,
+            shutdown,
+        );
     })
     .await
     .unwrap();
@@ -154,7 +190,11 @@ fn engine_loop(
     config: Config,
     sink: Box<dyn CommandSink>,
     mut control_rx: mpsc::Receiver<ControlCommand>,
+    stream_config: Option<StreamConfig>,
+    shutdown: Arc<AtomicBool>,
 ) {
+    // Stream output is spawned lazily on first "start"
+    let mut stream: Option<stream_output::StreamOutput> = None;
     let pw = config.processing_width();
     let ph = config.resolution;
 
@@ -210,10 +250,35 @@ fn engine_loop(
 
     // Main loop
     loop {
+        // Check for graceful shutdown (Ctrl+C)
+        if shutdown.load(Ordering::SeqCst) {
+            tracing::info!("engine shutting down, finalizing stream...");
+            drop(stream); // closes stdin, waits for ffmpeg to finalize
+            tracing::info!("shutdown complete");
+            return;
+        }
+
         // Process control commands (non-blocking)
         while let Ok(cmd) = control_rx.try_recv() {
             match cmd.command.as_str() {
                 "start" | "resume" => {
+                    // Spawn stream FFmpeg on first start
+                    if stream.is_none() {
+                        if let Some(ref sc) = stream_config {
+                            let (url, path) = match sc {
+                                StreamConfig::Url(u) => (Some(u.as_str()), None),
+                                StreamConfig::File(p) => (None, Some(p.as_str())),
+                            };
+                            tracing::info!("starting stream output");
+                            stream = Some(stream_output::StreamOutput::new(
+                                config.preview_width(),
+                                config.preview_height(),
+                                config.fps,
+                                url,
+                                path,
+                            ));
+                        }
+                    }
                     *state.running.lock().unwrap() = true;
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
@@ -256,6 +321,11 @@ fn engine_loop(
                     tracing::info!("engine paused");
                 }
                 "reset" => {
+                    // Finalize stream on reset (closes the file cleanly)
+                    if let Some(s) = stream.take() {
+                        tracing::info!("finalizing stream output on reset");
+                        drop(s);
+                    }
                     engine.reset();
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
@@ -400,6 +470,10 @@ fn engine_loop(
         let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
 
         // Preview from cached pixmap — O(1), no re-rasterization needed
+        // Write raw RGBA to stream before PNG encoding (cheaper than decoding PNG)
+        if let Some(ref mut s) = stream {
+            s.write_frame(engine.preview_pixmap_data());
+        }
         let preview_png = engine.preview_png();
         let preview_b64 = Some(base64::engine::general_purpose::STANDARD.encode(&preview_png));
 

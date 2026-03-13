@@ -71,6 +71,14 @@ pub struct Args {
     /// Gamma correction for target image. <1 brightens, >1 darkens, 1.0 = no change.
     #[arg(long, default_value_t = 1.0)]
     pub gamma: f64,
+
+    /// Stream preview to an RTMP URL (e.g. rtmp://a.rtmp.youtube.com/live2/KEY)
+    #[arg(long)]
+    pub stream_url: Option<String>,
+
+    /// Stream preview to a file (e.g. output.mp4)
+    #[arg(long)]
+    pub stream_output: Option<String>,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.
