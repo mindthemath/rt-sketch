@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/rt-protocol"]
+resolver = "2"
+
 [package]
 name = "rt-sketch"
 version = "0.1.0"
@@ -5,6 +9,9 @@ edition = "2021"
 description = "Real-time video-to-SVG sketch engine for drawing robots"
 
 [dependencies]
+# Shared protocol
+rt-protocol = { path = "crates/rt-protocol" }
+
 # CLI
 clap = { version = "4", features = ["derive"] }
 

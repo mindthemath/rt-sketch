@@ -1248,6 +1248,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rt-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "rt-sketch"
 version = "0.1.0"
 dependencies = [
@@ -1258,6 +1262,7 @@ dependencies = [
  "image",
  "rayon",
  "reqwest",
+ "rt-protocol",
  "rust-embed",
  "serde",
  "serde_json",

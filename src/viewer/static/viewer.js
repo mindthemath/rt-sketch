@@ -14,6 +14,8 @@ const PX_PER_CM = 30;
 
 let readOnly = true;
 let globalRunning = false;
+let globalLineCount = 0;
+let globalLengthCm = 0;
 
 function createInstance(name, widthCm, heightCm, strokeCm) {
     if (instances.has(name)) {
@@ -124,6 +126,8 @@ function resizeCanvas(inst) {
 function clearCanvas(inst) {
     inst.ctx.fillStyle = "#fff";
     inst.ctx.fillRect(0, 0, inst.canvas.width, inst.canvas.height);
+    globalLineCount -= inst.lineCount;
+    globalLengthCm -= inst.totalLengthCm;
     inst.lineCount = 0;
     inst.totalLengthCm = 0;
     inst.lines = [];
@@ -142,8 +146,11 @@ function drawLine(inst, x1, y1, x2, y2, width) {
     ctx.stroke();
     const dx = x2 - x1;
     const dy = y2 - y1;
-    inst.totalLengthCm += Math.sqrt(dx * dx + dy * dy);
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    inst.totalLengthCm += segLen;
+    globalLengthCm += segLen;
     inst.lineCount++;
+    globalLineCount++;
     inst.lines.push({ x1, y1, x2, y2, width });
     updateInfo(inst);
 }
@@ -160,13 +167,7 @@ function updateInfo(inst) {
 }
 
 function updateTotalLines() {
-    let totalCount = 0;
-    let totalLen = 0;
-    for (const inst of instances.values()) {
-        totalCount += inst.lineCount;
-        totalLen += inst.totalLengthCm;
-    }
-    totalLinesEl.textContent = totalCount + " lines · " + formatLength(totalLen);
+    totalLinesEl.textContent = globalLineCount + " lines · " + formatLength(globalLengthCm);
 }
 
 function disconnectInstance(name) {

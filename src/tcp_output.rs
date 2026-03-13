@@ -6,13 +6,10 @@ use std::time::{Duration, Instant};
 
 use crate::engine::canvas::LineSegment;
 
-const MAGIC: &[u8; 4] = b"RTSK";
-const MSG_HELLO: u32 = 0;
-const MSG_LINE: u32 = 1;
-const MSG_RESET: u32 = 2;
-const CMD_PLAY: u32 = 3;
-const CMD_PAUSE: u32 = 4;
-const CMD_RESET_ALL: u32 = 5;
+use rt_protocol::{
+    build_cmd, build_header, parse_header, CMD_PAUSE, CMD_PLAY, CMD_RESET_ALL, HEADER_SIZE,
+    MSG_HELLO, MSG_LINE, MSG_RESET,
+};
 
 /// Commands received from the viewer.
 #[derive(Debug, Clone, PartialEq)]
@@ -123,10 +120,7 @@ impl TcpOutput {
         let payload_len = 2 + name_bytes.len() + 12 + 1; // u16 name_len + name + 3x f32 + u8 running
 
         let stream = self.stream.as_mut().unwrap();
-        // Header
-        stream.write_all(MAGIC)?;
-        stream.write_all(&MSG_HELLO.to_le_bytes())?;
-        stream.write_all(&(payload_len as u32).to_le_bytes())?;
+        stream.write_all(&build_header(MSG_HELLO, payload_len as u32))?;
         // Payload
         stream.write_all(&(name_bytes.len() as u16).to_le_bytes())?;
         stream.write_all(name_bytes)?;
@@ -168,10 +162,8 @@ impl TcpOutput {
             return;
         };
 
-        let mut buf = [0u8; 12 + 20]; // header + 5x f32
-        buf[0..4].copy_from_slice(MAGIC);
-        buf[4..8].copy_from_slice(&MSG_LINE.to_le_bytes());
-        buf[8..12].copy_from_slice(&20u32.to_le_bytes());
+        let mut buf = [0u8; HEADER_SIZE + 20]; // header + 5x f32
+        buf[0..HEADER_SIZE].copy_from_slice(&build_header(MSG_LINE, 20));
         buf[12..16].copy_from_slice(&(line.x1 as f32).to_le_bytes());
         buf[16..20].copy_from_slice(&(line.y1 as f32).to_le_bytes());
         buf[20..24].copy_from_slice(&(line.x2 as f32).to_le_bytes());
@@ -197,21 +189,19 @@ impl TcpOutput {
 
         // Temporarily set non-blocking to poll
         stream.set_nonblocking(true).ok();
-        let mut buf = [0u8; 12];
+        let mut buf = [0u8; HEADER_SIZE];
         loop {
             match stream.read_exact(&mut buf) {
                 Ok(()) => {
-                    if &buf[0..4] != MAGIC {
-                        continue;
-                    }
-                    let msg_type = u32::from_le_bytes(buf[4..8].try_into().unwrap());
-                    // payload_len should be 0 for commands, skip if not
-                    let payload_len = u32::from_le_bytes(buf[8..12].try_into().unwrap()) as usize;
-                    if payload_len > 0 {
-                        let mut discard = vec![0u8; payload_len];
+                    let header = match parse_header(&buf) {
+                        Ok(h) => h,
+                        Err(_) => continue,
+                    };
+                    if header.payload_len > 0 {
+                        let mut discard = vec![0u8; header.payload_len as usize];
                         let _ = stream.read_exact(&mut discard);
                     }
-                    match msg_type {
+                    match header.msg_type {
                         CMD_PLAY => cmds.push(ViewerCommand::Play),
                         CMD_PAUSE => cmds.push(ViewerCommand::Pause),
                         CMD_RESET_ALL => cmds.push(ViewerCommand::Reset),
@@ -220,7 +210,6 @@ impl TcpOutput {
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                 Err(_) => {
-                    // Connection lost
                     self.stream = None;
                     break;
                 }
@@ -235,12 +224,7 @@ impl TcpOutput {
 
     pub fn send_reset(&mut self) {
         if let Some(ref mut stream) = self.stream {
-            let mut buf = [0u8; 12];
-            buf[0..4].copy_from_slice(MAGIC);
-            buf[4..8].copy_from_slice(&MSG_RESET.to_le_bytes());
-            buf[8..12].copy_from_slice(&0u32.to_le_bytes());
-
-            if let Err(e) = stream.write_all(&buf) {
+            if let Err(e) = stream.write_all(&build_cmd(MSG_RESET)) {
                 tracing::warn!("TCP write failed: {}, will reconnect", e);
                 self.stream = None;
             }

@@ -6,13 +6,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
 
-const MAGIC: &[u8; 4] = b"RTSK";
-const MSG_HELLO: u32 = 0;
-const MSG_LINE: u32 = 1;
-const MSG_RESET: u32 = 2;
-const CMD_PLAY: u32 = 3;
-const CMD_PAUSE: u32 = 4;
-const CMD_RESET_ALL: u32 = 5;
+use rt_protocol::{
+    build_cmd, parse_header, CMD_PAUSE, CMD_PLAY, CMD_RESET_ALL, HEADER_SIZE, MSG_HELLO, MSG_LINE,
+    MSG_RESET,
+};
 
 /// A line segment in canvas coordinates (cm).
 #[derive(Clone, Serialize)]
@@ -102,14 +99,6 @@ pub async fn accept_loop(listener: TcpListener, state: Arc<ViewerState>) {
     }
 }
 
-fn build_cmd_message(msg_type: u32) -> [u8; 12] {
-    let mut buf = [0u8; 12];
-    buf[0..4].copy_from_slice(MAGIC);
-    buf[4..8].copy_from_slice(&msg_type.to_le_bytes());
-    buf[8..12].copy_from_slice(&0u32.to_le_bytes());
-    buf
-}
-
 async fn handle_connection(
     mut stream: TcpStream,
     state: Arc<ViewerState>,
@@ -190,7 +179,7 @@ async fn handle_connection(
                             ControlAction::Pause => CMD_PAUSE,
                             ControlAction::Reset => CMD_RESET_ALL,
                         };
-                        let buf = build_cmd_message(msg_type);
+                        let buf = build_cmd(msg_type);
                         if write_half.write_all(&buf).await.is_err() {
                             break;
                         }
@@ -284,37 +273,18 @@ async fn message_loop(
     }
 }
 
-struct Header {
-    msg_type: u32,
-    payload_len: u32,
-}
+use rt_protocol::Header;
 
 async fn read_header(stream: &mut TcpStream) -> Result<Header, Box<dyn std::error::Error>> {
-    let mut buf = [0u8; 12];
+    let mut buf = [0u8; HEADER_SIZE];
     stream.read_exact(&mut buf).await?;
-
-    if &buf[0..4] != MAGIC {
-        return Err("invalid magic bytes".into());
-    }
-
-    Ok(Header {
-        msg_type: u32::from_le_bytes(buf[4..8].try_into()?),
-        payload_len: u32::from_le_bytes(buf[8..12].try_into()?),
-    })
+    parse_header(&buf).map_err(|e| e.into())
 }
 
 async fn read_header_from(
     stream: &mut tokio::net::tcp::OwnedReadHalf,
 ) -> Result<Header, Box<dyn std::error::Error>> {
-    let mut buf = [0u8; 12];
+    let mut buf = [0u8; HEADER_SIZE];
     stream.read_exact(&mut buf).await?;
-
-    if &buf[0..4] != MAGIC {
-        return Err("invalid magic bytes".into());
-    }
-
-    Ok(Header {
-        msg_type: u32::from_le_bytes(buf[4..8].try_into()?),
-        payload_len: u32::from_le_bytes(buf[8..12].try_into()?),
-    })
+    parse_header(&buf).map_err(|e| e.into())
 }
