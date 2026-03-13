@@ -224,10 +224,108 @@ function exportSvg(inst, filename) {
     URL.revokeObjectURL(url);
 }
 
-function exportAll() {
-    for (const [name, inst] of instances) {
-        exportSvg(inst, name + ".svg");
+function buildZip(files) {
+    // Minimal ZIP (STORE, no compression) — works everywhere, no dependencies
+    const enc = new TextEncoder();
+    const localHeaders = [];
+    const centralEntries = [];
+    let offset = 0;
+
+    for (const { name, data } of files) {
+        const nameBytes = enc.encode(name);
+        const dataBytes = typeof data === "string" ? enc.encode(data) : data;
+        const crc = crc32(dataBytes);
+
+        // Local file header (30 + name + data)
+        const local = new Uint8Array(30 + nameBytes.length + dataBytes.length);
+        const lv = new DataView(local.buffer);
+        lv.setUint32(0, 0x04034b50, true);   // signature
+        lv.setUint16(4, 20, true);            // version needed
+        lv.setUint16(6, 0, true);             // flags
+        lv.setUint16(8, 0, true);             // compression: STORE
+        lv.setUint16(10, 0, true);            // mod time
+        lv.setUint16(12, 0, true);            // mod date
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, dataBytes.length, true); // compressed
+        lv.setUint32(22, dataBytes.length, true); // uncompressed
+        lv.setUint16(26, nameBytes.length, true);
+        lv.setUint16(28, 0, true);            // extra length
+        local.set(nameBytes, 30);
+        local.set(dataBytes, 30 + nameBytes.length);
+        localHeaders.push(local);
+
+        // Central directory entry (46 + name)
+        const central = new Uint8Array(46 + nameBytes.length);
+        const cv = new DataView(central.buffer);
+        cv.setUint32(0, 0x02014b50, true);   // signature
+        cv.setUint16(4, 20, true);            // version made by
+        cv.setUint16(6, 20, true);            // version needed
+        cv.setUint16(8, 0, true);             // flags
+        cv.setUint16(10, 0, true);            // compression: STORE
+        cv.setUint16(12, 0, true);            // mod time
+        cv.setUint16(14, 0, true);            // mod date
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, dataBytes.length, true);
+        cv.setUint32(24, dataBytes.length, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint16(30, 0, true);            // extra length
+        cv.setUint16(32, 0, true);            // comment length
+        cv.setUint16(34, 0, true);            // disk number
+        cv.setUint16(36, 0, true);            // internal attrs
+        cv.setUint32(38, 0, true);            // external attrs
+        cv.setUint32(42, offset, true);       // local header offset
+        central.set(nameBytes, 46);
+        centralEntries.push(central);
+
+        offset += local.length;
     }
+
+    const centralSize = centralEntries.reduce((s, e) => s + e.length, 0);
+
+    // End of central directory (22 bytes)
+    const eocd = new Uint8Array(22);
+    const ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(4, 0, true);
+    ev.setUint16(6, 0, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+    ev.setUint16(20, 0, true);
+
+    const blob = new Blob([...localHeaders, ...centralEntries, eocd], { type: "application/zip" });
+    return blob;
+}
+
+function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+        crc ^= bytes[i];
+        for (let j = 0; j < 8; j++) {
+            crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+        }
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function exportAll() {
+    const now = new Date();
+    const ts = now.toISOString().replace(/[:.]/g, "-").replace("Z", "");
+    const folder = "rt-viewer-export-" + ts;
+
+    const files = [];
+    for (const [name, inst] of instances) {
+        files.push({ name: folder + "/" + name + ".svg", data: buildSvg(inst) });
+    }
+
+    const blob = buildZip(files);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = folder + ".zip";
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 // --- Global controls ---
