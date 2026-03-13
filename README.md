@@ -170,6 +170,17 @@ The iteration counter increments regardless of acceptance, so `iter - lines` giv
 
 Candidate scoring is parallelized across cores with rayon. Each candidate clones only the cached pixmap (not the full SVG), rasterizes one line, and computes MSE. The cached pixmap is updated incrementally on acceptance, so the per-step cost is O(K) pixmap clones + rasterizations rather than re-rendering all lines.
 
+### Multi-instance capacity planning
+
+Use `--threads` to cap rayon's thread pool per worker, making resource usage predictable. As a rule of thumb:
+
+| Setup | Cores per worker | Formula |
+|-------|-----------------|---------|
+| Streaming only (`--stream-tcp`) | 2 | `floor(cores / 2)` |
+| Streaming + recording (`--stream-output`) | 3 | `floor(cores / 3)` |
+
+Set `--threads 2` for each worker. The remaining core (in the recording case) covers the ffmpeg encode subprocess, frame reader, and async runtime. For example, a dedicated 96-core machine can run ~32 recording workers or ~48 stream-only workers at 24fps.
+
 ## Robot protocol
 
 When `--robot-server` is set, accepted lines are POSTed to `{server}/draw` as JSON:
