@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          # - target: x86_64-apple-darwin
+          #   os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
+
+      - name: Build release binaries
+        run: |
+          cargo build --release --target ${{ matrix.target }} -p rt-sketch -p rt-viewer
+
+      - name: Package binaries
+        run: |
+          ARCHIVE="rt-sketch-${{ matrix.target }}.tar.gz"
+          tar czf "$ARCHIVE" \
+            -C target/${{ matrix.target }}/release \
+            rt-sketch rt-viewer
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rt-sketch-${{ matrix.target }}
+          path: ${{ env.ARCHIVE }}
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Set release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          DATE=$(date -u +%Y%m%d)
+          SUFFIX=""
+          if [ "$IS_DISPATCH" = "true" ]; then
+            SUFFIX=".dev"
+          fi
+          # check if a release already exists for today (with or without suffix)
+          EXISTING=$(gh release list --json tagName -q '.[].tagName' \
+            | grep -P "^${DATE}(${SUFFIX}[0-9]+)?$" || true)
+          if [ -z "$EXISTING" ]; then
+            TAG="${DATE}${SUFFIX}${SUFFIX:+0}"
+          else
+            # find the highest numeric suffix and increment
+            LAST=$(echo "$EXISTING" \
+              | grep -oP "^${DATE}${SUFFIX}\K[0-9]+" \
+              | sort -n | tail -1)
+            if [ -z "$LAST" ]; then
+              # bare YYYYMMDD exists, next is YYYYMMDD.1
+              TAG="${DATE}.1"
+            else
+              NEXT=$(( LAST + 1 ))
+              TAG="${DATE}${SUFFIX}${NEXT}"
+            fi
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          generate_release_notes: true
+          make_latest: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          files: rt-sketch-*.tar.gz
