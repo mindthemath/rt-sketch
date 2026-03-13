@@ -12,7 +12,7 @@ clap = { version = "4", features = ["derive"] }
 
 # Async runtime + web server
 tokio = { version = "1", features = ["full"] }
-axum = { version = "0.7", features = ["ws"] }
+axum = { version = "0.8", features = ["ws"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
