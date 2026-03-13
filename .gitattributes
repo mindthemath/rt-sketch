@@ -1,0 +1,2 @@
+src/drawing/** filter=git-crypt diff=git-crypt
+src/bin/draw_curves.rs filter=git-crypt diff=git-crypt
