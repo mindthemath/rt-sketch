@@ -60,9 +60,11 @@ devhelp:
 streamA:
 	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start --threads $(THREADS)
 
-## help: Show this help
 streamB:
 	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start --threads $(THREADS)
+
+streamC:
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-C" --fps 24 --wait-for-viewer --auto-start --threads 2
 
 viewer:
 	cargo run --release -p rt-viewer
