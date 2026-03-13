@@ -11,7 +11,7 @@ use axum::Router;
 use clap::Parser;
 use tokio::sync::broadcast;
 
-use tcp_server::{ViewerEvent, ViewerState};
+use tcp_server::{ControlAction, ControlCmd, ViewerEvent, ViewerState};
 
 #[derive(Parser, Debug)]
 #[command(name = "rt-viewer", about = "Multi-instance viewer for rt-sketch")]
@@ -23,6 +23,10 @@ struct Args {
     /// Web UI port for the viewer page
     #[arg(long, default_value_t = 9901)]
     web_port: u16,
+
+    /// Read-only mode: disable play/pause/reset controls
+    #[arg(long)]
+    read_only: bool,
 }
 
 #[tokio::main]
@@ -37,10 +41,17 @@ async fn main() {
     let args = Args::parse();
 
     let (event_tx, _) = broadcast::channel::<ViewerEvent>(256);
+    let (control_tx, _) = broadcast::channel::<ControlCmd>(64);
+
+    if args.read_only {
+        tracing::info!("read-only mode: controls disabled");
+    }
 
     let state = Arc::new(ViewerState {
         instances: Mutex::new(HashMap::new()),
         event_tx,
+        control_tx,
+        read_only: args.read_only,
     });
 
     // Start TCP listener for rt-sketch instances
@@ -108,7 +119,7 @@ async fn ws_handler(
 }
 
 async fn handle_ws(mut socket: WebSocket, state: Arc<ViewerState>) {
-    // Send init message with all current instances and their lines
+    // Send init message with all current instances, their lines, and read_only flag
     let init_data = {
         let instances = state.instances.lock().unwrap();
         let init: Vec<serde_json::Value> = instances
@@ -134,7 +145,11 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<ViewerState>) {
                 })
             })
             .collect();
-        serde_json::json!({ "type": "init", "instances": init })
+        serde_json::json!({
+            "type": "init",
+            "instances": init,
+            "read_only": state.read_only
+        })
     };
 
     if socket
@@ -145,20 +160,57 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<ViewerState>) {
         return;
     }
 
-    // Forward events to this WebSocket client
+    // Bidirectional: forward events to browser, receive commands from browser
     let mut event_rx = state.event_tx.subscribe();
+    let read_only = state.read_only;
+    let control_tx = state.control_tx.clone();
+
     loop {
-        match event_rx.recv().await {
-            Ok(event) => {
-                let json = serde_json::to_string(&event).unwrap();
-                if socket.send(Message::Text(json.into())).await.is_err() {
-                    break;
+        tokio::select! {
+            event = event_rx.recv() => {
+                match event {
+                    Ok(event) => {
+                        let json = serde_json::to_string(&event).unwrap();
+                        if socket.send(Message::Text(json.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("WebSocket client lagged, skipped {} events", n);
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
                 }
             }
-            Err(broadcast::error::RecvError::Lagged(n)) => {
-                tracing::warn!("WebSocket client lagged, skipped {} events", n);
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if read_only {
+                            continue;
+                        }
+                        if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
+                            let target = cmd.get("name")
+                                .and_then(|n| n.as_str())
+                                .map(|s| s.to_string());
+                            let label = target.as_deref().unwrap_or("all");
+                            let action = match cmd.get("type").and_then(|t| t.as_str()) {
+                                Some("play") => Some(ControlAction::Play),
+                                Some("pause") => Some(ControlAction::Pause),
+                                Some("reset") => Some(ControlAction::Reset),
+                                _ => None,
+                            };
+                            if let Some(action) = action {
+                                tracing::info!("viewer: {:?} {}", action, label);
+                                let _ = control_tx.send(ControlCmd {
+                                    command: action,
+                                    target,
+                                });
+                            }
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
             }
-            Err(broadcast::error::RecvError::Closed) => break,
         }
     }
 }

@@ -206,10 +206,15 @@ Open **http://localhost:9901** to see all instances drawing in real time.
 |------|---------|-------------|
 | `--tcp-port` | `9900` | TCP port for rt-sketch instances to connect to |
 | `--web-port` | `9901` | Web UI port for the viewer page |
+| `--read-only` | `false` | Disable play/pause/reset controls in the viewer UI |
 
 ### How it works
 
 Each rt-sketch instance sends individual line segments over TCP as they're accepted (32 bytes per line — 12-byte header + 5 floats). The viewer maintains a canvas per instance in the browser, drawing lines incrementally via WebSocket. Late-joining browser clients receive a full replay of all accumulated lines.
+
+### Remote control
+
+When not in `--read-only` mode, the viewer UI shows Play, Pause, and Reset buttons that send commands back to all connected workers over the same TCP connection. This lets you control a fleet of headless workers from a single browser tab.
 
 ### Recording + streaming together
 

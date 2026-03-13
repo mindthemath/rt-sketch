@@ -29,7 +29,7 @@ pub struct AppState {
     pub control_tx: tokio::sync::mpsc::Sender<ControlCommand>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct UpdateMessage {
     #[serde(rename = "type")]
     pub msg_type: String,

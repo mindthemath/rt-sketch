@@ -1,5 +1,7 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::engine::canvas::LineSegment;
@@ -8,6 +10,17 @@ const MAGIC: &[u8; 4] = b"RTSK";
 const MSG_HELLO: u32 = 0;
 const MSG_LINE: u32 = 1;
 const MSG_RESET: u32 = 2;
+const CMD_PLAY: u32 = 3;
+const CMD_PAUSE: u32 = 4;
+const CMD_RESET_ALL: u32 = 5;
+
+/// Commands received from the viewer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ViewerCommand {
+    Play,
+    Pause,
+    Reset,
+}
 
 /// Streams line segments to a TCP viewer server.
 pub struct TcpOutput {
@@ -17,6 +30,7 @@ pub struct TcpOutput {
     canvas_width_cm: f32,
     canvas_height_cm: f32,
     stroke_width_cm: f32,
+    shutdown: Arc<AtomicBool>,
 }
 
 impl TcpOutput {
@@ -26,6 +40,7 @@ impl TcpOutput {
         canvas_width_cm: f64,
         canvas_height_cm: f64,
         stroke_width_cm: f64,
+        shutdown: Arc<AtomicBool>,
     ) -> Self {
         let mut out = Self {
             stream: None,
@@ -34,6 +49,7 @@ impl TcpOutput {
             canvas_width_cm: canvas_width_cm as f32,
             canvas_height_cm: canvas_height_cm as f32,
             stroke_width_cm: stroke_width_cm as f32,
+            shutdown,
         };
         out.try_connect();
         out
@@ -101,11 +117,16 @@ impl TcpOutput {
     }
 
     /// Block until a connection to the viewer is established, retrying every second.
-    pub fn wait_for_connection(&mut self) {
+    /// Returns false if shutdown was requested before connecting.
+    pub fn wait_for_connection(&mut self) -> bool {
         while self.stream.is_none() {
-            std::thread::sleep(Duration::from_secs(1));
+            if self.shutdown.load(Ordering::Relaxed) {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(500));
             self.try_connect();
         }
+        true
     }
 
     pub fn send_line(&mut self, line: &LineSegment) {
@@ -130,6 +151,51 @@ impl TcpOutput {
             tracing::warn!("TCP write failed: {}, will reconnect", e);
             self.stream = None;
         }
+    }
+
+    /// Non-blocking poll for commands from the viewer.
+    pub fn poll_commands(&mut self) -> Vec<ViewerCommand> {
+        let mut cmds = Vec::new();
+        let Some(ref mut stream) = self.stream else {
+            return cmds;
+        };
+
+        // Temporarily set non-blocking to poll
+        stream.set_nonblocking(true).ok();
+        let mut buf = [0u8; 12];
+        loop {
+            match stream.read_exact(&mut buf) {
+                Ok(()) => {
+                    if &buf[0..4] != MAGIC {
+                        continue;
+                    }
+                    let msg_type = u32::from_le_bytes(buf[4..8].try_into().unwrap());
+                    // payload_len should be 0 for commands, skip if not
+                    let payload_len = u32::from_le_bytes(buf[8..12].try_into().unwrap()) as usize;
+                    if payload_len > 0 {
+                        let mut discard = vec![0u8; payload_len];
+                        let _ = stream.read_exact(&mut discard);
+                    }
+                    match msg_type {
+                        CMD_PLAY => cmds.push(ViewerCommand::Play),
+                        CMD_PAUSE => cmds.push(ViewerCommand::Pause),
+                        CMD_RESET_ALL => cmds.push(ViewerCommand::Reset),
+                        _ => {}
+                    }
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(_) => {
+                    // Connection lost
+                    self.stream = None;
+                    break;
+                }
+            }
+        }
+        // Restore blocking mode
+        if let Some(ref stream) = self.stream {
+            stream.set_nonblocking(false).ok();
+        }
+        cmds
     }
 
     pub fn send_reset(&mut self) {

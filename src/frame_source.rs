@@ -1,7 +1,9 @@
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 /// Probe the source to get its native width and height in pixels.
 /// Uses ffprobe to avoid decoding the whole stream.
@@ -63,9 +65,12 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
 /// Reads grayscale frames from an ffmpeg subprocess.
 /// A background thread continuously reads frames and stores the latest one,
 /// so the consumer always gets the most recent frame without lag.
+/// If ffmpeg exits (e.g. source unavailable), the reader thread automatically
+/// respawns it after a short delay.
 pub struct FrameSource {
     latest: Arc<Mutex<Option<Vec<u8>>>>,
-    _child: Arc<Mutex<Child>>,
+    shutdown: Arc<AtomicBool>,
+    _reader_thread: thread::JoinHandle<()>,
 }
 
 /// Parsed source specification.
@@ -92,98 +97,137 @@ impl SourceSpec {
     }
 }
 
+/// Build the ffmpeg Command for a given source spec.
+fn build_ffmpeg_cmd(source: &str, target_width: u32, target_height: u32, fps: f64) -> Command {
+    let spec = SourceSpec::parse(source);
+
+    let mut cmd = Command::new("ffmpeg");
+    cmd.arg("-hide_banner").arg("-loglevel").arg("fatal");
+
+    match &spec {
+        SourceSpec::Image(path) => {
+            cmd.arg("-loop").arg("1").arg("-i").arg(path);
+            cmd.arg("-r").arg(format!("{}", fps));
+        }
+        SourceSpec::Webcam(device) => {
+            if cfg!(target_os = "linux") {
+                let dev = if device.starts_with("/dev/") {
+                    device.clone()
+                } else {
+                    format!("/dev/video{}", device)
+                };
+                cmd.arg("-f")
+                    .arg("v4l2")
+                    .arg("-video_size")
+                    .arg("640x480")
+                    .arg("-i")
+                    .arg(dev);
+            } else if cfg!(target_os = "macos") {
+                cmd.arg("-f")
+                    .arg("avfoundation")
+                    .arg("-framerate")
+                    .arg("30")
+                    .arg("-pixel_format")
+                    .arg("nv12")
+                    .arg("-video_size")
+                    .arg("640x480")
+                    .arg("-i")
+                    .arg(format!("{}:", device));
+            }
+        }
+        SourceSpec::Video(path) => {
+            cmd.arg("-i").arg(path);
+        }
+    }
+
+    let vf = match &spec {
+        SourceSpec::Image(_) => format!("scale={}:{}", target_width, target_height),
+        _ => format!("fps={},scale={}:{}", fps, target_width, target_height),
+    };
+    cmd.arg("-vf")
+        .arg(vf)
+        .arg("-pix_fmt")
+        .arg("gray")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("pipe:1");
+
+    cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
+    cmd
+}
+
+/// Spawn ffmpeg and return the child process (or None on failure).
+fn spawn_ffmpeg(source: &str, target_width: u32, target_height: u32, fps: f64) -> Option<Child> {
+    let mut cmd = build_ffmpeg_cmd(source, target_width, target_height, fps);
+    match cmd.spawn() {
+        Ok(child) => Some(child),
+        Err(e) => {
+            tracing::warn!("failed to spawn ffmpeg: {}", e);
+            None
+        }
+    }
+}
+
 impl FrameSource {
     /// Create a new FrameSource from the given source spec.
     /// `target_width` and `target_height` are the processing resolution.
+    /// If ffmpeg fails to start or exits, the background reader will retry
+    /// automatically every 2 seconds.
     pub fn new(source: &str, target_width: u32, target_height: u32, fps: f64) -> Self {
-        let spec = SourceSpec::parse(source);
-
-        let mut cmd = Command::new("ffmpeg");
-        cmd.arg("-hide_banner").arg("-loglevel").arg("fatal");
-
-        match &spec {
-            SourceSpec::Image(path) => {
-                cmd.arg("-loop").arg("1").arg("-i").arg(path);
-                // For static images, output at the target fps
-                cmd.arg("-r").arg(format!("{}", fps));
-            }
-            SourceSpec::Webcam(device) => {
-                // Request 640x480 capture — close to typical processing
-                // resolution and much cheaper than 1280x720.
-                if cfg!(target_os = "linux") {
-                    let dev = if device.starts_with("/dev/") {
-                        device.clone()
-                    } else {
-                        format!("/dev/video{}", device)
-                    };
-                    cmd.arg("-f")
-                        .arg("v4l2")
-                        .arg("-video_size")
-                        .arg("640x480")
-                        .arg("-i")
-                        .arg(dev);
-                } else if cfg!(target_os = "macos") {
-                    cmd.arg("-f")
-                        .arg("avfoundation")
-                        .arg("-framerate")
-                        .arg("30")
-                        .arg("-pixel_format")
-                        .arg("nv12")
-                        .arg("-video_size")
-                        .arg("640x480")
-                        .arg("-i")
-                        .arg(format!("{}:", device));
-                }
-            }
-            SourceSpec::Video(path) => {
-                cmd.arg("-i").arg(path);
-            }
-        }
-
-        // Output: scaled grayscale raw frames
-        // For live sources, limit output fps to reduce CPU overhead —
-        // the algorithm doesn't need 30 target frames per second.
-        let vf = match &spec {
-            SourceSpec::Image(_) => format!("scale={}:{}", target_width, target_height),
-            _ => format!("fps={},scale={}:{}", fps, target_width, target_height),
-        };
-        cmd.arg("-vf")
-            .arg(vf)
-            .arg("-pix_fmt")
-            .arg("gray")
-            .arg("-f")
-            .arg("rawvideo")
-            .arg("pipe:1");
-
-        cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
-
-        tracing::info!("spawning ffmpeg: {:?}", cmd);
-
-        let mut child = cmd
-            .spawn()
-            .expect("failed to spawn ffmpeg — is it installed?");
-
         let frame_size = (target_width * target_height) as usize;
         let latest: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let shutdown = Arc::new(AtomicBool::new(false));
 
-        // Take stdout from child before moving it into the Arc
-        let mut stdout = child.stdout.take().expect("ffmpeg stdout not captured");
-
-        let child = Arc::new(Mutex::new(child));
-
-        // Background thread: continuously read frames, keeping only the latest
         let latest_writer = Arc::clone(&latest);
-        thread::Builder::new()
+        let shutdown_flag = Arc::clone(&shutdown);
+        let source_owned = source.to_string();
+
+        let handle = thread::Builder::new()
             .name("frame-reader".into())
             .spawn(move || {
-                let mut buf = vec![0u8; frame_size];
-                loop {
-                    match stdout.read_exact(&mut buf) {
-                        Ok(()) => {
-                            let mut slot = latest_writer.lock().unwrap();
-                            *slot = Some(buf.clone());
+                while !shutdown_flag.load(Ordering::Relaxed) {
+                    // Spawn ffmpeg
+                    let mut child =
+                        match spawn_ffmpeg(&source_owned, target_width, target_height, fps) {
+                            Some(c) => c,
+                            None => {
+                                tracing::warn!("retrying ffmpeg in 2s...");
+                                thread::sleep(Duration::from_secs(2));
+                                continue;
+                            }
+                        };
+
+                    let mut stdout = match child.stdout.take() {
+                        Some(s) => s,
+                        None => {
+                            tracing::warn!("ffmpeg stdout not captured, retrying in 2s...");
+                            let _ = child.kill();
+                            thread::sleep(Duration::from_secs(2));
+                            continue;
                         }
-                        Err(_) => break,
+                    };
+
+                    // Read frames until EOF or error
+                    let mut buf = vec![0u8; frame_size];
+                    loop {
+                        if shutdown_flag.load(Ordering::Relaxed) {
+                            let _ = child.kill();
+                            return;
+                        }
+                        match stdout.read_exact(&mut buf) {
+                            Ok(()) => {
+                                let mut slot = latest_writer.lock().unwrap();
+                                *slot = Some(buf.clone());
+                            }
+                            Err(_) => break,
+                        }
+                    }
+
+                    // ffmpeg exited — clean up and retry
+                    let _ = child.wait();
+                    if !shutdown_flag.load(Ordering::Relaxed) {
+                        tracing::warn!("ffmpeg exited, restarting in 2s...");
+                        thread::sleep(Duration::from_secs(2));
                     }
                 }
             })
@@ -191,7 +235,8 @@ impl FrameSource {
 
         Self {
             latest,
-            _child: child,
+            shutdown,
+            _reader_thread: handle,
         }
     }
 
@@ -203,6 +248,6 @@ impl FrameSource {
 
 impl Drop for FrameSource {
     fn drop(&mut self) {
-        let _ = self._child.lock().unwrap().kill();
+        self.shutdown.store(true, Ordering::Relaxed);
     }
 }

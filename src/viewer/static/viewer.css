@@ -23,6 +23,31 @@ header h1 {
     color: #888;
 }
 
+.controls {
+    display: flex;
+    gap: 8px;
+}
+
+.controls.hidden {
+    display: none;
+}
+
+.controls button {
+    background: #222;
+    color: #ddd;
+    border: 1px solid #555;
+    padding: 4px 12px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.controls button:hover {
+    background: #333;
+    border-color: #888;
+}
+
 .status {
     font-size: 12px;
     padding: 2px 8px;
@@ -62,7 +87,7 @@ main {
 .instance .label {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 10px;
     padding: 8px 12px;
     font-size: 12px;
     border-bottom: 1px solid #333;
@@ -87,6 +112,32 @@ main {
 
 .instance.disconnected .label .info {
     display: none;
+}
+
+.instance-controls {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.instance-controls.hidden {
+    display: none;
+}
+
+.instance-controls button {
+    background: #222;
+    color: #ddd;
+    border: 1px solid #444;
+    padding: 2px 10px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.instance-controls button:hover {
+    background: #333;
+    border-color: #888;
 }
 
 .instance canvas {

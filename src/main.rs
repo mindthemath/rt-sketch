@@ -230,6 +230,7 @@ fn engine_loop(
             config.canvas_width_cm,
             config.canvas_height_cm,
             config.stroke_width_cm,
+            shutdown.clone(),
         )
     });
 
@@ -238,7 +239,10 @@ fn engine_loop(
         if let Some(ref mut tcp) = tcp_output {
             if !tcp.is_connected() {
                 tracing::info!("waiting for viewer connection...");
-                tcp.wait_for_connection();
+                if !tcp.wait_for_connection() {
+                    tracing::info!("shutdown during viewer wait");
+                    return;
+                }
             }
         }
     }
@@ -248,20 +252,23 @@ fn engine_loop(
 
     let mut frame_source = FrameSource::new(source_str, pw, ph, config.fps);
 
-    // Wait for the first frame (webcams may need a moment to initialize)
+    // Wait for the first frame — retries indefinitely (ffmpeg auto-respawns)
     let first_frame = {
-        let mut frame = None;
-        for attempt in 1..=30 {
-            if let Some(f) = frame_source.next_frame() {
-                frame = Some(f);
-                break;
+        let mut attempt = 0u64;
+        loop {
+            if shutdown.load(Ordering::SeqCst) {
+                tracing::info!("shutdown during frame source init");
+                return;
             }
-            if attempt % 5 == 0 {
+            if let Some(f) = frame_source.next_frame() {
+                break f;
+            }
+            attempt += 1;
+            if attempt % 10 == 0 {
                 tracing::info!("waiting for first frame ({}s)...", attempt / 5);
             }
             std::thread::sleep(Duration::from_millis(200));
         }
-        frame.expect("failed to read first frame after 6s — check ffmpeg output above")
     };
 
     {
@@ -313,6 +320,54 @@ fn engine_loop(
             drop(tcp_output);
             tracing::info!("shutdown complete");
             return;
+        }
+
+        // Poll for viewer commands (play/pause/reset from rt-viewer)
+        let viewer_cmds: Vec<_> = tcp_output
+            .as_mut()
+            .map(|tcp| tcp.poll_commands())
+            .unwrap_or_default();
+        for cmd in viewer_cmds {
+            match cmd {
+                tcp_output::ViewerCommand::Play => {
+                    tracing::info!("viewer: play");
+                    *state.running.lock().unwrap() = true;
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        running: Some(true),
+                        ..Default::default()
+                    });
+                }
+                tcp_output::ViewerCommand::Pause => {
+                    tracing::info!("viewer: pause");
+                    *state.running.lock().unwrap() = false;
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        running: Some(false),
+                        ..Default::default()
+                    });
+                }
+                tcp_output::ViewerCommand::Reset => {
+                    tracing::info!("viewer: reset");
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_reset();
+                    }
+                    let was_running = *state.running.lock().unwrap();
+                    engine.reset();
+                    *state.iteration.lock().unwrap() = 0;
+                    *state.current_score.lock().unwrap() = 1.0;
+                    *state.canvas.lock().unwrap() = engine.canvas.clone();
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "reset".to_string(),
+                        iteration: Some(0),
+                        score: Some(1.0),
+                        line_count: Some(0),
+                        running: Some(was_running),
+                        total_length: Some(0.0),
+                        ..Default::default()
+                    });
+                }
+            }
         }
 
         // Process control commands (non-blocking)

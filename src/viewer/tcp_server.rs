@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
 
@@ -10,6 +10,9 @@ const MAGIC: &[u8; 4] = b"RTSK";
 const MSG_HELLO: u32 = 0;
 const MSG_LINE: u32 = 1;
 const MSG_RESET: u32 = 2;
+const CMD_PLAY: u32 = 3;
+const CMD_PAUSE: u32 = 4;
+const CMD_RESET_ALL: u32 = 5;
 
 /// A line segment in canvas coordinates (cm).
 #[derive(Clone, Serialize)]
@@ -56,10 +59,27 @@ pub enum ViewerEvent {
     Disconnect { name: String },
 }
 
+/// Control commands sent from the viewer to workers.
+/// `target` is None for global (all workers) or Some(name) for a specific instance.
+#[derive(Clone, Debug)]
+pub struct ControlCmd {
+    pub command: ControlAction,
+    pub target: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub enum ControlAction {
+    Play,
+    Pause,
+    Reset,
+}
+
 /// Shared viewer state.
 pub struct ViewerState {
     pub instances: Mutex<HashMap<String, InstanceInfo>>,
     pub event_tx: broadcast::Sender<ViewerEvent>,
+    pub control_tx: broadcast::Sender<ControlCmd>,
+    pub read_only: bool,
 }
 
 pub async fn accept_loop(listener: TcpListener, state: Arc<ViewerState>) {
@@ -79,6 +99,14 @@ pub async fn accept_loop(listener: TcpListener, state: Arc<ViewerState>) {
             }
         }
     }
+}
+
+fn build_cmd_message(msg_type: u32) -> [u8; 12] {
+    let mut buf = [0u8; 12];
+    buf[0..4].copy_from_slice(MAGIC);
+    buf[4..8].copy_from_slice(&msg_type.to_le_bytes());
+    buf[8..12].copy_from_slice(&0u32.to_le_bytes());
+    buf
 }
 
 async fn handle_connection(
@@ -132,8 +160,42 @@ async fn handle_connection(
         stroke_width_cm,
     });
 
-    // Read messages in a loop
-    let result = message_loop(&mut stream, &state, &name).await;
+    // Split stream for bidirectional communication
+    let (mut read_half, mut write_half) = stream.into_split();
+
+    // Subscribe to control commands
+    let mut control_rx = state.control_tx.subscribe();
+
+    // Run read loop and control forwarding concurrently
+    let conn_name = name.clone();
+    let result = tokio::select! {
+        r = message_loop(&mut read_half, &state, &name) => r,
+        _ = async {
+            loop {
+                match control_rx.recv().await {
+                    Ok(cmd) => {
+                        // Filter: global (None) or targeted at this instance
+                        if let Some(ref target) = cmd.target {
+                            if target != &conn_name {
+                                continue;
+                            }
+                        }
+                        let msg_type = match cmd.command {
+                            ControlAction::Play => CMD_PLAY,
+                            ControlAction::Pause => CMD_PAUSE,
+                            ControlAction::Reset => CMD_RESET_ALL,
+                        };
+                        let buf = build_cmd_message(msg_type);
+                        if write_half.write_all(&buf).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        } => Ok(()),
+    };
 
     // Clean up on disconnect
     tracing::info!("instance \"{}\" disconnected", name);
@@ -147,12 +209,12 @@ async fn handle_connection(
 }
 
 async fn message_loop(
-    stream: &mut TcpStream,
+    stream: &mut tokio::net::tcp::OwnedReadHalf,
     state: &Arc<ViewerState>,
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let header = read_header(stream).await?;
+        let header = read_header_from(stream).await?;
 
         match header.msg_type {
             MSG_LINE => {
@@ -223,6 +285,22 @@ struct Header {
 }
 
 async fn read_header(stream: &mut TcpStream) -> Result<Header, Box<dyn std::error::Error>> {
+    let mut buf = [0u8; 12];
+    stream.read_exact(&mut buf).await?;
+
+    if &buf[0..4] != MAGIC {
+        return Err("invalid magic bytes".into());
+    }
+
+    Ok(Header {
+        msg_type: u32::from_le_bytes(buf[4..8].try_into()?),
+        payload_len: u32::from_le_bytes(buf[8..12].try_into()?),
+    })
+}
+
+async fn read_header_from(
+    stream: &mut tokio::net::tcp::OwnedReadHalf,
+) -> Result<Header, Box<dyn std::error::Error>> {
     let mut buf = [0u8; 12];
     stream.read_exact(&mut buf).await?;
 
