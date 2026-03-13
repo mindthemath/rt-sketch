@@ -67,9 +67,19 @@ viewer:
 	cargo run --release --bin rt-viewer
 
 webcam-macos:
-		ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
-			-c:v libx264 -preset ultrafast -tune zerolatency \
-				-f mpegts tcp://0.0.0.0:1234?listen
+	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+		-c:v libx264 -preset ultrafast -tune zerolatency \
+		-f rtsp rtsp://localhost:8554/cam
+
+webcam-macos-udp:
+	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+		-c:v libx264 -preset ultrafast -tune zerolatency \
+		-f mpegts udp://239.0.0.1:1234
+
+webcam-linux:
+	ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
+		-c:v libx264 -preset ultrafast -tune zerolatency \
+		-f rtsp rtsp://localhost:8554/cam
 
 ## help: Show this help
 help:

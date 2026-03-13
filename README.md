@@ -232,83 +232,176 @@ When the webcam is on one machine but rt-sketch workers run on others, you can s
 
 Note: `--canvas-width` / `--canvas-height` may need to be set explicitly since ffprobe over a network stream can sometimes fail to detect dimensions.
 
-On Linux, replace `-f avfoundation` with `-f v4l2 -i /dev/video0` in the examples below.
+### Using an existing MJPEG stream
+
+Many IP cameras, Raspberry Pi camera servers, and public webcams expose an MJPEG stream over HTTP. rt-sketch can consume these directly — no mediamtx or ffmpeg relay needed.
+
+```bash
+# IP camera or mjpg-streamer endpoint
+rt-sketch --source video:http://192.168.1.100:8080/video
+
+# Public webcam (any MJPEG URL that ffmpeg can read)
+rt-sketch --source video:http://example.com/webcam.mjpg
+
+# With explicit canvas dimensions (recommended — ffprobe can't always detect them over HTTP)
+rt-sketch --source video:http://192.168.1.100:8080/video \
+  --canvas-width 10 --canvas-height 7.5
+```
+
+Multiple workers can point at the same MJPEG URL independently — each opens its own HTTP connection, so no restreaming server is needed.
+
+If you're running `mjpg-streamer` on a Raspberry Pi (common for OctoPrint and similar setups), the stream URL is typically `http://<pi-ip>:8080/?action=stream`.
+
+### Streaming the webcam feed
+
+The camera machine needs to serve its webcam as a network stream that multiple workers can consume simultaneously. We use [mediamtx](https://github.com/bluenviern/mediamtx) as a restreaming server — it accepts a single ffmpeg feed and serves it to any number of clients over RTSP or HLS.
+
+```
+[Webcam] ──→ [ffmpeg] ──RTSP──→ [mediamtx] ──RTSP/HLS──→ [Worker A]
+                                                      ──→ [Worker B]
+                                                      ──→ [Worker C]
+```
+
+#### Install mediamtx
+
+**macOS:**
+```bash
+brew install mediamtx
+```
+
+**Linux (Raspberry Pi / Debian):**
+```bash
+# Download the latest release for your architecture
+# ARM64 (Pi 4/5):
+wget https://github.com/bluenviern/mediamtx/releases/latest/download/mediamtx_v*_linux_arm64v8.tar.gz
+# AMD64:
+wget https://github.com/bluenviern/mediamtx/releases/latest/download/mediamtx_v*_linux_amd64.tar.gz
+
+tar -xzf mediamtx_*.tar.gz
+sudo mv mediamtx /usr/local/bin/
+```
+
+#### Start the camera feed
+
+Run mediamtx and ffmpeg on the camera machine:
+
+```bash
+# Terminal 1: start mediamtx (RTSP on :8554, HLS on :8888)
+mediamtx
+```
+
+```bash
+# Terminal 2: feed the webcam into mediamtx
+
+# macOS
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f rtsp rtsp://localhost:8554/cam
+
+# Linux (Raspberry Pi / USB webcam)
+ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f rtsp rtsp://localhost:8554/cam
+```
+
+#### Test the feed
+
+```bash
+# From any machine on the network (requires ffmpeg)
+ffplay -fflags nobuffer -flags low_delay -framedrop rtsp://<camera-ip>:8554/cam
+```
+
+#### Connect workers
+
+Any number of workers can consume the same feed simultaneously:
+
+```bash
+rt-sketch --source video:rtsp://<camera-ip>:8554/cam \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-A"
+```
 
 ### LAN setup (no internet required)
 
 All machines on the same local network. Best for offline installations or workshops.
 
 ```
-[Camera machine] ──UDP multicast──→ [Worker A] ──TCP──┐
-                                    [Worker B] ──TCP──┤──→ [Viewer] ──WebSocket──→ [Browser]
+                                    [Worker A] ──TCP──┐
+[Camera + mediamtx] ──RTSP──→      [Worker B] ──TCP──┤──→ [Viewer] ──WebSocket──→ [Browser]
                                     [Worker C] ──TCP──┘
 ```
 
-**Camera machine** — broadcast the webcam feed via UDP multicast:
-```bash
-ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
-  -c:v libx264 -preset ultrafast -tune zerolatency \
-  -f mpegts udp://239.0.0.1:1234
-```
+**Camera machine** — start mediamtx and the webcam feed (see above), then:
 
 **Viewer machine** (can be the camera machine or any other):
 ```bash
 rt-viewer
 ```
 
-**Worker machines** — consume the multicast feed, stream lines to the viewer:
+**Worker machines** — consume the RTSP feed, stream lines to the viewer:
 ```bash
+rt-sketch --source video:rtsp://<camera-ip>:8554/cam \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-A"
+```
+
+**Alternative: UDP multicast (no mediamtx needed)**
+
+For LAN-only setups where simplicity matters, you can skip mediamtx and use UDP multicast directly. Any number of workers can consume the feed with zero configuration:
+
+```bash
+# Camera machine (macOS)
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f mpegts udp://239.0.0.1:1234
+
+# Camera machine (Linux)
+ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f mpegts udp://239.0.0.1:1234
+
+# Workers
 rt-sketch --source video:udp://239.0.0.1:1234 \
   --stream-tcp <viewer-ip>:9900 \
   --stream-name "bot-A"
 ```
 
-UDP multicast is ideal here — zero configuration, any number of workers can join without extra load on the camera machine, and latency is minimal over a local switch.
+UDP multicast is the simplest option — no extra software, any number of clients, minimal latency. The downside is it only works on a LAN and doesn't traverse tunnels or the internet.
 
 ### Remote setup (over the internet via Cloudflare Tunnels)
 
 Camera and viewer on one network, workers on remote machines. Uses [Cloudflare Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to avoid port forwarding or VPNs.
 
+mediamtx serves HLS over HTTP (port 8888 by default), which works through Cloudflare Tunnels. RTSP does not traverse tunnels, so remote workers use the HLS endpoint instead.
+
 ```
-                                                         [Remote Worker A] ──┐
-[Camera] ──TCP──→ [cloudflared] ──tunnel──→ [cloudflared] ──→               │
-                                            [cloudflared] ──→               │
-                                                         [Remote Worker B] ──┤──→ [cloudflared] ──tunnel──→ [Viewer]
-                                                         [Remote Worker C] ──┘
+                                                           [Remote Worker A] ──┐
+[Camera + mediamtx] ──HLS──→ [cloudflared] ──tunnel──→ ──→                    │
+                                                        ──→                    │
+                                                           [Remote Worker B] ──┤──→ [cloudflared] ──tunnel──→ [Viewer]
+                                                           [Remote Worker C] ──┘
 ```
 
 Workers only make outbound connections (to the video feed and viewer tunnels), so they don't need to be publicly accessible or run `cloudflared` tunnels of their own. Use `--auto-start` so they begin drawing immediately without needing the web UI.
 
-UDP doesn't work through Cloudflare Tunnels, so use TCP MPEG-TS for the video feed instead.
-
-**Camera machine** — serve the webcam over TCP:
+**Camera machine** — start mediamtx and the webcam feed (see above), then expose the HLS endpoint:
 ```bash
-ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
-  -c:v libx264 -preset ultrafast -tune zerolatency \
-  -f mpegts tcp://0.0.0.0:1234?listen
+cloudflared tunnel --url http://localhost:8888 --name video-feed
 ```
 
-Expose the video feed via a tunnel:
+Tunnel the viewer TCP port and web UI:
 ```bash
-cloudflared tunnel --url tcp://localhost:1234 --name video-feed
-```
-
-**Viewer machine** — run rt-viewer and tunnel both the TCP port and web UI:
-```bash
-rt-viewer
-
 cloudflared tunnel --url tcp://localhost:9900 --name viewer-tcp
 cloudflared tunnel --url http://localhost:9901 --name viewer-web
 ```
 
-**Remote worker machines** — forward the tunnels to local ports and run headless:
+**Remote worker machines** — consume HLS over the tunnel:
 ```bash
-# Forward tunneled video and viewer to local ports
-cloudflared access tcp --hostname video-feed.your-domain.com --url localhost:5000
+# Forward the viewer tunnel to a local port
 cloudflared access tcp --hostname viewer-tcp.your-domain.com --url localhost:5001
 
-# Run rt-sketch headless — no web UI needed
-rt-sketch --source video:tcp://localhost:5000 \
+# Run rt-sketch headless
+rt-sketch --source video:https://video-feed.your-domain.com/cam/index.m3u8 \
   --stream-tcp localhost:5001 \
   --stream-name "remote-A" \
   --auto-start \
@@ -317,7 +410,7 @@ rt-sketch --source video:tcp://localhost:5000 \
 
 `--wait-for-viewer` blocks until the viewer is reachable, retrying every second. This ensures no lines are lost if the worker starts before the viewer is up. Without it, lines drawn before the viewer connects are silently dropped.
 
-Latency through Cloudflare adds a few milliseconds, which is negligible — the line stream is 32 bytes per update, and the video feed just needs to deliver frames roughly at the target FPS. The algorithm grabs the latest frame whenever it's ready, so jitter doesn't matter.
+HLS adds a few seconds of latency compared to RTSP, but this doesn't matter — rt-sketch grabs the latest available frame whenever it's ready, so the drawing tracks the live feed with only a small delay. The line stream itself is 32 bytes per update, so tunnel overhead is negligible.
 
 ## Webcam selection (macOS)
 
