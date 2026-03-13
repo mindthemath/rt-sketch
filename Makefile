@@ -111,3 +111,7 @@ help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
+
+unlock:
+	pass git-crypt/rt-sketch | base64 -d 2>/dev/null | git-crypt unlock -
+
