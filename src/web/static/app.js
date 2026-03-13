@@ -193,6 +193,21 @@
         send("set_gamma", parseFloat(sliderGamma.value));
     });
 
+    // Sampler radio groups
+    function setupRadioGroup(groupId, command) {
+        const group = document.getElementById(groupId);
+        group.addEventListener("change", (e) => {
+            if (e.target.type === "radio") {
+                group.querySelectorAll("label").forEach(l => l.classList.remove("active"));
+                e.target.parentElement.classList.add("active");
+                send(command, e.target.value);
+            }
+        });
+    }
+    setupRadioGroup("radio-x-sampler", "set_x_sampler");
+    setupRadioGroup("radio-y-sampler", "set_y_sampler");
+    setupRadioGroup("radio-length-sampler", "set_length_sampler");
+
     // Target image display size (purely visual, no server command)
     const sliderTargetSize = document.getElementById("slider-target-size");
     const valTargetSize = document.getElementById("val-target-size");
