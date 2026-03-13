@@ -78,7 +78,8 @@ function createInstance(name, widthCm, heightCm, strokeCm) {
     bExport.textContent = "Export";
     bExport.addEventListener("click", () => {
         const inst = instances.get(name);
-        exportSvg(inst, name + ".svg");
+        const ts = new Date().toISOString().slice(11,19).replace(/:/g,"");
+        exportSvg(inst, name + "-" + ts + ".svg");
     });
 
     ctrlBar.appendChild(bToggle);
