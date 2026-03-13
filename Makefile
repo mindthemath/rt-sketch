@@ -71,7 +71,8 @@ draw-piecewise: build
 	@echo "Wrote curves_piecewise.svg"
 
 ## examples: Generate all example SVGs into examples/
-examples: build
+examples:
+	cargo build --release -p rt-drawing
 	./draw_examples.sh examples
 
 devhelp:
