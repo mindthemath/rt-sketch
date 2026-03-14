@@ -421,13 +421,13 @@ function connect() {
     ws = new WebSocket("ws://" + location.host + "/ws");
 
     ws.onopen = function () {
-        statusEl.textContent = "connected";
+        statusEl.textContent = "200";
         statusEl.className = "status connected";
         reconnectDelay = 1000;
     };
 
     ws.onclose = function () {
-        statusEl.textContent = "disconnected";
+        statusEl.textContent = "404";
         statusEl.className = "status disconnected";
         setTimeout(connect, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 2, 10000);
