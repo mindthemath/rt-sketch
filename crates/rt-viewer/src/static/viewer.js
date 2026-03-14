@@ -199,7 +199,7 @@ function sendCommand(type, name) {
 function updateGlobalToggle() {
     // Global is "running" if any instance is running
     globalRunning = [...instances.values()].some(i => i.running);
-    btnToggle.textContent = globalRunning ? "\u23F8" : "\u25B6";
+    btnToggle.textContent = globalRunning ? "Pause All" : "Play All";
 }
 
 // --- Export ---
@@ -349,7 +349,7 @@ btnToggle.addEventListener("click", () => {
         }
         globalRunning = true;
     }
-    btnToggle.textContent = globalRunning ? "\u23F8" : "\u25B6";
+    btnToggle.textContent = globalRunning ? "Pause All" : "Play All";
 });
 
 btnReset.addEventListener("click", () => {

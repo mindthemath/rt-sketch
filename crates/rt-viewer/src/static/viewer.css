@@ -47,6 +47,11 @@ header h1 {
     cursor: pointer;
 }
 
+#btn-toggle, #btn-reset {
+    width: 100px;
+    text-align: center;
+}
+
 .controls button:hover {
     background: #333;
     border-color: #888;
@@ -128,9 +133,11 @@ main {
 }
 
 .instance-controls {
-    display: inline-flex;
-    gap: 6px;
+    display: flex;
+    gap: 8px;
     margin-left: auto;
+    flex: 1;
+    min-width: 0;
 }
 
 .instance-controls.hidden {
@@ -141,16 +148,40 @@ main {
     background: #222;
     color: #ddd;
     border: 1px solid #444;
-    padding: 2px 10px;
     border-radius: 3px;
     font-family: monospace;
     font-size: 11px;
     cursor: pointer;
+    height: 22px;
+    line-height: 22px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .instance-controls button:hover {
     background: #333;
     border-color: #888;
+}
+
+/* Play/pause fills remaining space */
+.instance-controls button:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Reset is a fixed square */
+.instance-controls button:nth-child(2) {
+    width: 22px;
+    flex-shrink: 0;
+}
+
+/* Save is fixed width */
+.instance-controls button:nth-child(3) {
+    width: 40px;
+    flex-shrink: 0;
+    padding: 0 4px;
 }
 
 .instance-controls button.playing {
