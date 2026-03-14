@@ -53,7 +53,7 @@ pub struct Args {
     pub web_port: Option<u16>,
 
     /// Pen stroke width in cm
-    #[arg(long, default_value_t = 0.05)]
+    #[arg(long, default_value_t = 0.035)]
     pub stroke_width: f64,
 
     /// Minimum line length in cm

@@ -31,7 +31,7 @@ STAMP_CROP ?= clip
 stamps: build
 	./gen_stamps.sh
 
-## run-stamps: Run with webcam using stamp library
+## run-stamps: Run with webcam using stamp library (20cm ~ 7.9in)
 run-stamps: build
 	./target/release/rt-sketch --source webcam:$(DEVICE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 20 --canvas-width 20 --fps $(FPS) --threads $(THREADS)
 

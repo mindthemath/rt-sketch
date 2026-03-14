@@ -55,7 +55,7 @@ rt-sketch [OPTIONS]
 | `--canvas-width` | `10.0` | Canvas width in cm |
 | `--canvas-height` | `10.0` | Canvas height in cm |
 | `--ppi` | `72.0` | Pixels per inch for web preview rendering |
-| `--stroke-width` | `0.05` | Pen stroke width in cm |
+| `--stroke-width` | `0.035` | Pen stroke width in cm |
 
 The canvas aspect ratio is automatically adjusted to match the source (fit within the width/height bounding box).
 
@@ -258,7 +258,7 @@ When `--robot-server` is set, accepted lines are POSTed to `{server}/draw` as JS
   "y1": 2.3,
   "x2": 4.1,
   "y2": 3.7,
-  "width": 0.05
+  "width": 0.035
 }
 ```
 
