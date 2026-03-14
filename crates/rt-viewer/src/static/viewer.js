@@ -118,6 +118,7 @@ function setInstanceRunning(name, running) {
     if (!inst) return;
     inst.running = running;
     inst.toggleBtn.textContent = running ? "\u23F8" : "\u25B6";
+    inst.toggleBtn.classList.toggle("playing", running);
 }
 
 function resizeCanvas(inst) {

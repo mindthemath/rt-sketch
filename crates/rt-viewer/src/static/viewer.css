@@ -153,6 +153,16 @@ main {
     border-color: #888;
 }
 
+.instance-controls button.playing {
+    color: #f66;
+    border-color: #f66;
+}
+
+.instance-controls button:not(.playing):first-child {
+    color: #6f6;
+    border-color: #6f6;
+}
+
 .instance canvas {
     display: block;
     width: 100%;
