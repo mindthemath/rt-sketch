@@ -13,8 +13,8 @@ MAX_SCALE=1
 BASIS="relu"
 N_POINTS=12
 MIN_CHAINS=3
-MAX_CHAINS=9
-COUNT_PER=25
+MAX_CHAINS=6
+COUNT_PER=100
 JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 while [[ $# -gt 0 ]]; do
