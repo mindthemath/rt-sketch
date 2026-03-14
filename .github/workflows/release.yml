@@ -134,7 +134,7 @@ jobs:
             CHANGELOG=$(gh api repos/${{ github.repository }}/releases/generate-notes \
               -f tag_name="${TAG}" \
               -f previous_tag_name="${PREV_TAG}" \
-              -f target_commitish="${GITHUB_SHA}" \
+              -f target_commitish="${{ github.ref_name }}" \
               -q '.body' 2>/dev/null || echo "")
           fi
 
