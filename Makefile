@@ -33,11 +33,11 @@ stamps: build
 
 ## run-stamps: Run with webcam using stamp library
 run-stamps: build
-	./target/release/rt-sketch --source webcam:$(DEVICE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 20 --canvas-width 20 --fps $(FPS)
+	./target/release/rt-sketch --source webcam:$(DEVICE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 20 --canvas-width 20 --fps $(FPS) --threads $(THREADS)
 
 ## run-stamps-image: Run with a static test image using stamp library
 run-stamps-image: build
-	./target/release/rt-sketch --source image:$(IMAGE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 15 --canvas-width 15 --fps $(FPS)
+	./target/release/rt-sketch --source image:$(IMAGE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 15 --canvas-width 15 --fps $(FPS) --threads $(THREADS)
 
 ## dev-stamps: Run stamp mode in debug with a test image
 dev-stamps:
