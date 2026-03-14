@@ -17,15 +17,32 @@ jobs:
             os: ubuntu-latest
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            container: debian:bullseye
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            container: debian:bullseye
           # - target: x86_64-apple-darwin
           #   os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
 
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || '' }}
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Install build tools (container)
+        if: matrix.container
+        run: |
+          apt-get update
+          apt-get install -y curl gcc make pkg-config
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            apt-get install -y gcc-aarch64-linux-gnu
+            echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
+          fi
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -38,11 +55,6 @@ jobs:
           sudo apt-get install -y musl-tools
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
             sudo apt-get install -y gcc-aarch64-linux-gnu
-            cat > /tmp/musl-gcc-wrapper.sh << 'WRAPPER'
-            #!/bin/sh
-            exec aarch64-linux-gnu-gcc -static "$@"
-          WRAPPER
-            chmod +x /tmp/musl-gcc-wrapper.sh
             echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
             echo 'CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
           fi
@@ -121,6 +133,11 @@ jobs:
             ## Getting started
 
             **Requirement:** [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on your `PATH`.
+
+            ### Which Linux build?
+
+            - **musl** — statically linked, runs on any Linux regardless of distro or glibc version. Use this if unsure.
+            - **gnu** — dynamically linked against glibc 2.31 (Debian Bullseye). Slightly faster memory allocation for heavy workloads, but requires glibc ≥ 2.31 (Ubuntu 20.04+, Debian 11+).
 
             ### Download and run
 
