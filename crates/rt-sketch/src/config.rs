@@ -104,6 +104,10 @@ pub struct Args {
     #[arg(long, default_value = "clip")]
     pub stamp_crop: String,
 
+    /// Disable random rotation of stamps (place them axis-aligned).
+    #[arg(long)]
+    pub no_stamp_rotate: bool,
+
     /// Start drawing immediately without waiting for the web UI start button
     #[arg(long)]
     pub auto_start: bool,

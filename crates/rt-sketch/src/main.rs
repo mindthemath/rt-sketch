@@ -176,6 +176,7 @@ async fn main() {
     let auto_start = args.auto_start;
     let stamp_library_path = args.stamp_library.clone();
     let stamp_crop_str = args.stamp_crop.clone();
+    let stamp_rotate = !args.no_stamp_rotate;
     tokio::task::spawn_blocking(move || {
         engine_loop(
             engine_state,
@@ -190,6 +191,7 @@ async fn main() {
             wait_for_viewer,
             stamp_library_path,
             stamp_crop_str,
+            stamp_rotate,
         );
     })
     .await
@@ -232,6 +234,7 @@ fn engine_loop(
     wait_for_viewer: bool,
     stamp_library_path: Option<String>,
     stamp_crop_str: String,
+    stamp_rotate: bool,
 ) {
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
@@ -316,8 +319,8 @@ fn engine_loop(
         };
         match engine::stamp::StampLibrary::load(stamp_csv, config.stroke_width_cm) {
             Ok(library) => {
-                tracing::info!("stamp crop mode: {}", stamp_crop);
-                engine.set_stamp_library(library, stamp_crop);
+                tracing::info!("stamp crop: {}, rotate: {}", stamp_crop, stamp_rotate);
+                engine.set_stamp_library(library, stamp_crop, stamp_rotate);
             }
             Err(e) => {
                 eprintln!("error: failed to load stamp library: {}", e);
@@ -657,7 +660,11 @@ fn engine_loop(
             running: Some(true),
             last_line_len: result.last_metric,
             total_length: Some(total_length),
-            stamp_count: if stamp_library_path.is_some() { Some(engine.stamp_count) } else { None },
+            stamp_count: if stamp_library_path.is_some() {
+                Some(engine.stamp_count)
+            } else {
+                None
+            },
             last_bbox,
             canvas_width_cm: None,
             canvas_height_cm: None,

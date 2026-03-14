@@ -174,7 +174,8 @@ impl StampLibrary {
     }
 
     /// Sample a random stamp, scaled randomly within [min_scale, max_scale],
-    /// translated to a random position on the canvas.
+    /// optionally rotated by a uniform random angle, then translated to a
+    /// random position on the canvas.
     /// The runtime scale multiplies the stamp's base scale (from the CSV).
     /// Returns (translated line segments, runtime scale factor), cropped according to `crop` mode.
     pub fn sample(
@@ -186,6 +187,7 @@ impl StampLibrary {
         crop: StampCrop,
         min_scale: f64,
         max_scale: f64,
+        rotate: bool,
     ) -> (Vec<LineSegment>, f64) {
         // Pick a uniformly random stamp
         let idx = fastrand::usize(0..self.stamps.len());
@@ -196,6 +198,14 @@ impl StampLibrary {
             min_scale
         } else {
             min_scale + fastrand::f64() * (max_scale - min_scale)
+        };
+
+        // Random rotation angle (uniform over full circle)
+        let (sin_t, cos_t) = if rotate {
+            let theta = fastrand::f64() * std::f64::consts::TAU;
+            (theta.sin(), theta.cos())
+        } else {
+            (0.0, 1.0)
         };
 
         // Stamp center (in base-scaled coordinates)
@@ -209,11 +219,16 @@ impl StampLibrary {
         let mut result = Vec::with_capacity(stamp.lines.len());
 
         for line in &stamp.lines {
-            // Scale around stamp center, then translate to target position
-            let x1 = (line.x1 - cx) * runtime_scale + tx;
-            let y1 = (line.y1 - cy) * runtime_scale + ty;
-            let x2 = (line.x2 - cx) * runtime_scale + tx;
-            let y2 = (line.y2 - cy) * runtime_scale + ty;
+            // Center, scale, rotate, then translate to target position
+            let dx1 = (line.x1 - cx) * runtime_scale;
+            let dy1 = (line.y1 - cy) * runtime_scale;
+            let dx2 = (line.x2 - cx) * runtime_scale;
+            let dy2 = (line.y2 - cy) * runtime_scale;
+
+            let x1 = dx1 * cos_t - dy1 * sin_t + tx;
+            let y1 = dx1 * sin_t + dy1 * cos_t + ty;
+            let x2 = dx2 * cos_t - dy2 * sin_t + tx;
+            let y2 = dx2 * sin_t + dy2 * cos_t + ty;
 
             match crop {
                 StampCrop::None => {

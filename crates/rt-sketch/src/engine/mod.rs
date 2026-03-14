@@ -43,6 +43,8 @@ pub struct ProposalEngine {
     stamp_library: Option<StampLibrary>,
     /// How to handle stamp lines that extend beyond canvas bounds.
     stamp_crop: StampCrop,
+    /// Whether to apply random rotation to stamps.
+    stamp_rotate: bool,
     /// Number of accepted stamps (stamp mode only).
     pub stamp_count: u64,
 }
@@ -76,6 +78,7 @@ impl ProposalEngine {
             preview_height: prev_h,
             stamp_library: None,
             stamp_crop: StampCrop::default(),
+            stamp_rotate: true,
             stamp_count: 0,
         }
     }
@@ -95,9 +98,10 @@ impl ProposalEngine {
         Ok(())
     }
 
-    pub fn set_stamp_library(&mut self, library: StampLibrary, crop: StampCrop) {
+    pub fn set_stamp_library(&mut self, library: StampLibrary, crop: StampCrop, rotate: bool) {
         self.stamp_library = Some(library);
         self.stamp_crop = crop;
+        self.stamp_rotate = rotate;
     }
 
     pub fn reset(&mut self) {
@@ -210,6 +214,7 @@ impl ProposalEngine {
         let crop = self.stamp_crop;
         let min_scale = self.min_line_len;
         let max_scale = self.max_line_len;
+        let rotate = self.stamp_rotate;
 
         // Generate K stamp candidates (each is a (Vec<LineSegment>, runtime_scale))
         let candidates: Vec<(Vec<LineSegment>, f64)> = (0..k)
@@ -222,6 +227,7 @@ impl ProposalEngine {
                     crop,
                     min_scale,
                     max_scale,
+                    rotate,
                 )
             })
             .collect();
