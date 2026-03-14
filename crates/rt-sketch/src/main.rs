@@ -406,6 +406,7 @@ fn engine_loop(
         }
 
         // Process control commands (non-blocking)
+        let mut lut_changed = false;
         while let Ok(cmd) = control_rx.try_recv() {
             match cmd.command.as_str() {
                 "start" | "resume" => {
@@ -535,6 +536,7 @@ fn engine_loop(
                         current_gamma = v;
                         correction_lut =
                             build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        lut_changed = true;
                         tracing::info!("gamma set to {}", v);
                     }
                 }
@@ -543,6 +545,7 @@ fn engine_loop(
                         current_exposure = v;
                         correction_lut =
                             build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        lut_changed = true;
                         tracing::info!("exposure set to {} EV", v);
                     }
                 }
@@ -551,6 +554,7 @@ fn engine_loop(
                         current_contrast = v;
                         correction_lut =
                             build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        lut_changed = true;
                         tracing::info!("contrast set to {}", v);
                     }
                 }
@@ -571,7 +575,7 @@ fn engine_loop(
         tcp_running.store(running, Ordering::Relaxed);
         if !running {
             // Send target updates even while paused so camera feed stays live
-            if got_new_frame {
+            if got_new_frame || lut_changed {
                 let raw_target = state.target_frame.lock().unwrap().clone().unwrap();
                 let target = apply_correction(&raw_target, &correction_lut);
                 let target_b64 = web::gray_to_base64_png(&target, pw, ph);
@@ -624,8 +628,8 @@ fn engine_loop(
         let preview_png = engine.preview_png();
         let preview_b64 = Some(base64::engine::general_purpose::STANDARD.encode(&preview_png));
 
-        // Only re-encode target if we got a new frame this iteration
-        let target_b64 = if got_new_frame {
+        // Re-encode target if we got a new frame or correction changed
+        let target_b64 = if got_new_frame || lut_changed {
             Some(web::gray_to_base64_png(&target, pw, ph))
         } else {
             None
