@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rt-sketch viewer</title>
+    <link rel="stylesheet" href="/viewer.css">
+</head>
+<body>
+    <header>
+        <h1>rt-sketch viewer</h1>
+        <div id="controls" class="controls hidden">
+            <button id="btn-toggle">Play All</button>
+            <button id="btn-reset">Reset All</button>
+            <button id="btn-export">Export</button>
+            <button id="btn-tidy">Tidy</button>
+        </div>
+        <div id="still-bar" class="still-bar"><div id="still-fill" class="still-fill"></div></div>
+        <span class="sep">·</span>
+        <span id="total-lines" class="total-lines"></span>
+        <span class="sep">·</span>
+        <span id="total-stats" class="total-lines"></span>
+        <span id="status" class="status disconnected">404</span>
+    </header>
+    <main id="grid"></main>
+    <script src="/viewer.js"></script>
+</body>
+</html>

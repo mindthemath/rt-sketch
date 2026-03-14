@@ -11,6 +11,7 @@
         <h1>rt-sketch</h1>
         <div id="stats">
             <span class="stat"><label>iter</label><strong id="stat-iteration">0</strong></span>
+            <span class="stat" id="stat-stamps-wrap" style="display:none"><label>stamps</label><strong id="stat-stamps">0</strong></span>
             <span class="stat"><label>lines</label><strong id="stat-lines">0</strong></span>
             <span class="stat"><label>last</label><span class="stat-val"><span class="stat-bar"><span class="stat-bar-fill" id="stat-last-bar"></span></span> <strong id="stat-last-len">-</strong> cm</span></span>
             <span class="stat"><label>MSE</label><strong id="stat-score">-</strong></span>
@@ -37,9 +38,15 @@
         </div>
         <div class="panel-row">
             <div class="panel">
-                <h2>canvas (processing res)</h2>
-                <div class="placeholder" id="canvas-placeholder">press start to begin</div>
-                <img id="canvas-img" alt="canvas at processing resolution" style="display:none">
+                <div class="panel-header">
+                    <h2>canvas (processing res)</h2>
+                    <label class="bbox-toggle"><input type="checkbox" id="chk-bbox" checked> bbox</label>
+                </div>
+                <div class="canvas-img-wrapper">
+                    <div class="placeholder" id="canvas-placeholder">press start to begin</div>
+                    <img id="canvas-img" alt="canvas at processing resolution" style="display:none">
+                    <div id="bbox-overlay"></div>
+                </div>
             </div>
             <div class="panel preview-panel">
                 <h2>canvas</h2>

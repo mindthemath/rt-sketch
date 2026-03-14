@@ -1,9 +1,10 @@
-.PHONY: build run run-image dev check test clean fmt help snap draw-basic draw-piecewise draw-examples
+.PHONY: build run run-image run-image-remote dev check test clean clean-examples fmt help snap draw-basic draw-piecewise examples stamps run-stamps run-stamps-image dev-stamps
 
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
 DEVICE ?= 0
 FPS ?= 24
+THREADS ?= 2
 
 ## build: Compile release binary
 build:
@@ -23,13 +24,36 @@ record-image: build
 run-image: build
 	./target/release/rt-sketch --source image:$(IMAGE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
 
+STAMP_LIB ?= imgs/stamps.csv
+STAMP_CROP ?= clip
+
+## stamps: Generate stamp library SVGs into imgs/
+stamps: build
+	./gen_stamps.sh
+
+## run-stamps: Run with webcam using stamp library (20cm ~ 7.9in)
+run-stamps: build
+	./target/release/rt-sketch --source webcam:$(DEVICE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 20 --canvas-width 20 --fps $(FPS) --threads $(THREADS)
+
+## run-stamps-image: Run with a static test image using stamp library
+run-stamps-image: build
+	./target/release/rt-sketch --source image:$(IMAGE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 15 --canvas-width 15 --fps $(FPS) --threads $(THREADS)
+
+## dev-stamps: Run stamp mode in debug with a test image
+dev-stamps:
+	cargo run -p rt-sketch -- --source image:$(IMAGE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP)
+
+## run-image-remote: Run with a remote test image
+run-image-remote: build
+	./target/release/rt-sketch --source image:https://cdn.mindthemath.com/logo-450-cb.png --canvas-height 15 --canvas-width 15 --fps $(FPS)
+
 ## dev: Run in debug mode with a test image
 dev:
-	cargo run -- --source image:$(IMAGE)
+	cargo run -p rt-sketch -- --source image:$(IMAGE)
 
 ## dev-webcam: Run in debug mode with webcam
 dev-webcam:
-	cargo run -- --source webcam:0
+	cargo run -p rt-sketch -- --source webcam:0
 
 ## check: Run clippy and tests
 check: fmt
@@ -42,7 +66,10 @@ test:
 
 ## clean: Remove build artifacts
 clean:
-	cargo clean
+	find . -name '.DS_Store' -delete
+
+clean-examples:
+	rm -rf examples
 
 ## fmt: Format code
 fmt:
@@ -66,12 +93,46 @@ draw-piecewise: build
 	./target/release/draw_curves --seed 55 --num-curves 9 --piecewise 3 --rot 45 --noise 0.2 -o curves_piecewise.svg --n-points 24 --step 36
 	@echo "Wrote curves_piecewise.svg"
 
-## draw-examples: Generate all example SVGs into examples/
-draw-examples: build
+## examples: Generate all example SVGs into examples/
+examples:
+	cargo build --release -p rt-drawing
 	./draw_examples.sh examples
 
 devhelp:
-	cargo run -- --help
+	cargo run -p rt-sketch -- --help
+
+streamA:
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-A" --fps 24 --wait-for-viewer --auto-start --threads $(THREADS)
+
+streamB:
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-B" --fps 24 --wait-for-viewer --auto-start --threads $(THREADS)
+
+streamC:
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-C" --fps 24 --wait-for-viewer --auto-start --threads 2
+
+stamp-stream-image:
+	cargo run --release -p rt-sketch -- --source image:$(IMAGE) --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
+
+stamp-stream:
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
+
+viewer:
+	cargo run --release -p rt-viewer
+
+webcam-macos:
+	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+		-c:v libx264 -preset ultrafast -tune zerolatency \
+		-f rtsp rtsp://localhost:8554/cam
+
+webcam-macos-udp:
+	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+		-c:v libx264 -preset ultrafast -tune zerolatency \
+		-f mpegts udp://239.0.0.1:1234
+
+webcam-linux:
+	ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
+		-c:v libx264 -preset ultrafast -tune zerolatency \
+		-f rtsp rtsp://localhost:8554/cam
 
 ## help: Show this help
 help:
@@ -80,3 +141,10 @@ help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
+
+unlock:
+	pass git-crypt/rt-sketch | base64 -d 2>/dev/null | git-crypt unlock -
+
+test-release:
+	gh workflow run release.yml --ref "$$(git branch --show-current)"
+

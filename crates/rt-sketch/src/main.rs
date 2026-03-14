@@ -3,6 +3,7 @@ mod engine;
 mod frame_source;
 mod output;
 mod stream_output;
+mod tcp_output;
 mod web;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -36,6 +37,15 @@ async fn main() {
         .init();
 
     let args = Args::parse();
+
+    if let Some(threads) = args.threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .expect("failed to configure rayon thread pool");
+        tracing::info!("rayon thread pool: {} threads", threads);
+    }
+
     let mut config = Config::from_args(&args);
 
     // Probe source to fit canvas to its aspect ratio
@@ -135,6 +145,15 @@ async fn main() {
         (None, None) => None,
     };
 
+    // Set up TCP viewer output if requested
+    let tcp_config = args.stream_tcp.clone().map(|addr| {
+        let name = args
+            .stream_name
+            .clone()
+            .unwrap_or_else(|| "rt-sketch".to_string());
+        (addr, name)
+    });
+
     // Shutdown flag for graceful Ctrl+C handling
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_signal = shutdown.clone();
@@ -144,9 +163,23 @@ async fn main() {
         shutdown_signal.store(true, Ordering::SeqCst);
     });
 
+    // Validate --wait-for-viewer requires --stream-tcp
+    let wait_for_viewer = args.wait_for_viewer;
+    if wait_for_viewer && args.stream_tcp.is_none() {
+        eprintln!("error: --wait-for-viewer requires --stream-tcp");
+        std::process::exit(1);
+    }
+
     // Run engine loop in a blocking thread
     let engine_state = state.clone();
     let source_str = args.source.clone();
+    let auto_start = args.auto_start;
+    let stamp_library_path = args.stamp_library.clone();
+    let stamp_crop_str = args.stamp_crop.clone();
+    let stamp_rotate = !args.no_stamp_rotate;
+    let max_iter = args.max_iter;
+    let max_stamps = args.max_stamps;
+    let max_lines = args.max_lines;
     tokio::task::spawn_blocking(move || {
         engine_loop(
             engine_state,
@@ -156,6 +189,15 @@ async fn main() {
             control_rx,
             stream_config,
             shutdown,
+            tcp_config,
+            auto_start,
+            wait_for_viewer,
+            stamp_library_path,
+            stamp_crop_str,
+            stamp_rotate,
+            max_iter,
+            max_stamps,
+            max_lines,
         );
     })
     .await
@@ -193,28 +235,75 @@ fn engine_loop(
     mut control_rx: mpsc::Receiver<ControlCommand>,
     stream_config: Option<StreamConfig>,
     shutdown: Arc<AtomicBool>,
+    tcp_config: Option<(String, String)>,
+    auto_start: bool,
+    wait_for_viewer: bool,
+    stamp_library_path: Option<String>,
+    stamp_crop_str: String,
+    stamp_rotate: bool,
+    initial_max_iter: u64,
+    initial_max_stamps: u64,
+    initial_max_lines: u64,
 ) {
+    // Active limits — cleared by "continue", restored on "reset"
+    let mut max_iter = initial_max_iter;
+    let mut max_stamps = initial_max_stamps;
+    let mut max_lines = initial_max_lines;
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
+
+    // Shared running flag for TCP output — reported in HELLO on reconnect
+    let tcp_running = Arc::new(AtomicBool::new(auto_start));
+
+    // TCP viewer output — connects immediately if configured
+    let mut tcp_output: Option<tcp_output::TcpOutput> = tcp_config.map(|(addr, name)| {
+        tracing::info!("TCP viewer: {} as \"{}\"", addr, name);
+        tcp_output::TcpOutput::new(
+            &addr,
+            &name,
+            config.canvas_width_cm,
+            config.canvas_height_cm,
+            config.stroke_width_cm,
+            tcp_running.clone(),
+            shutdown.clone(),
+        )
+    });
+
+    // Block until viewer is reachable if requested
+    if wait_for_viewer {
+        if let Some(ref mut tcp) = tcp_output {
+            if !tcp.is_connected() {
+                tracing::info!("waiting for viewer connection...");
+                if !tcp.wait_for_connection() {
+                    tracing::info!("shutdown during viewer wait");
+                    return;
+                }
+            }
+        }
+    }
+
     let pw = config.processing_width();
     let ph = config.resolution;
 
     let mut frame_source = FrameSource::new(source_str, pw, ph, config.fps);
 
-    // Wait for the first frame (webcams may need a moment to initialize)
+    // Wait for the first frame — retries indefinitely (ffmpeg auto-respawns)
     let first_frame = {
-        let mut frame = None;
-        for attempt in 1..=30 {
-            if let Some(f) = frame_source.next_frame() {
-                frame = Some(f);
-                break;
+        let mut attempt = 0u64;
+        loop {
+            if shutdown.load(Ordering::SeqCst) {
+                tracing::info!("shutdown during frame source init");
+                return;
             }
-            if attempt % 5 == 0 {
+            if let Some(f) = frame_source.next_frame() {
+                break f;
+            }
+            attempt += 1;
+            if attempt % 10 == 0 {
                 tracing::info!("waiting for first frame ({}s)...", attempt / 5);
             }
             std::thread::sleep(Duration::from_millis(200));
         }
-        frame.expect("failed to read first frame after 6s — check ffmpeg output above")
     };
 
     {
@@ -226,20 +315,33 @@ fn engine_loop(
     let target_b64 = web::gray_to_base64_png(&first_frame, pw, ph);
     let _ = state.update_tx.send(UpdateMessage {
         msg_type: "target".to_string(),
-        canvas_png: None,
         target_png: Some(target_b64),
-        preview_png: None,
-        iteration: None,
-        score: None,
-        fps: None,
-        k: None,
-        line_count: None,
-        running: None,
-        last_line_len: None,
-        total_length: None,
+        ..Default::default()
     });
 
     let mut engine = ProposalEngine::new(&config);
+
+    // Load stamp library if configured
+    if let Some(ref stamp_csv) = stamp_library_path {
+        let stamp_crop: engine::stamp::StampCrop = match stamp_crop_str.parse() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return;
+            }
+        };
+        match engine::stamp::StampLibrary::load(stamp_csv, config.stroke_width_cm) {
+            Ok(library) => {
+                tracing::info!("stamp crop: {}, rotate: {}", stamp_crop, stamp_rotate);
+                engine.set_stamp_library(library, stamp_crop, stamp_rotate);
+            }
+            Err(e) => {
+                eprintln!("error: failed to load stamp library: {}", e);
+                return;
+            }
+        }
+    }
+
     let mut current_k = config.k;
     let target_frame_duration = Duration::from_secs_f64(1.0 / config.fps);
 
@@ -250,22 +352,93 @@ fn engine_loop(
     let mut correction_lut =
         build_correction_lut(current_gamma, current_exposure, current_contrast);
 
-    tracing::info!("engine ready, waiting for start command...");
+    if auto_start {
+        *state.running.lock().unwrap() = true;
+        tracing::info!("engine ready, auto-starting");
+    } else {
+        tracing::info!("engine ready, waiting for start command...");
+    }
 
     // Main loop
     loop {
         // Check for graceful shutdown (Ctrl+C)
         if shutdown.load(Ordering::SeqCst) {
-            tracing::info!("engine shutting down, finalizing stream...");
-            drop(stream); // closes stdin, waits for ffmpeg to finalize
+            tracing::info!("engine shutting down, finalizing outputs...");
+            drop(stream);
+            drop(tcp_output);
             tracing::info!("shutdown complete");
             return;
         }
 
+        // Poll for viewer commands (play/pause/reset from rt-viewer)
+        let viewer_cmds: Vec<_> = tcp_output
+            .as_mut()
+            .map(|tcp| tcp.poll_commands())
+            .unwrap_or_default();
+        for cmd in viewer_cmds {
+            match cmd {
+                tcp_output::ViewerCommand::Play => {
+                    tracing::info!("viewer: play");
+                    // Clear limits on resume (override), but not after a fresh reset
+                    if *state.iteration.lock().unwrap() > 0 {
+                        max_iter = 0;
+                        max_stamps = 0;
+                        max_lines = 0;
+                    }
+                    *state.running.lock().unwrap() = true;
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        running: Some(true),
+                        ..Default::default()
+                    });
+                }
+                tcp_output::ViewerCommand::Pause => {
+                    tracing::info!("viewer: pause");
+                    *state.running.lock().unwrap() = false;
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        running: Some(false),
+                        ..Default::default()
+                    });
+                }
+                tcp_output::ViewerCommand::Reset => {
+                    tracing::info!("viewer: reset");
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_reset();
+                    }
+                    let was_running = *state.running.lock().unwrap();
+                    engine.reset();
+                    // Restore original limits
+                    max_iter = initial_max_iter;
+                    max_stamps = initial_max_stamps;
+                    max_lines = initial_max_lines;
+                    *state.iteration.lock().unwrap() = 0;
+                    *state.current_score.lock().unwrap() = 1.0;
+                    *state.canvas.lock().unwrap() = engine.canvas.clone();
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "reset".to_string(),
+                        iteration: Some(0),
+                        score: Some(1.0),
+                        line_count: Some(0),
+                        running: Some(was_running),
+                        total_length: Some(0.0),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+
         // Process control commands (non-blocking)
+        let mut lut_changed = false;
         while let Ok(cmd) = control_rx.try_recv() {
             match cmd.command.as_str() {
                 "start" | "resume" => {
+                    // Clear limits on resume (override), but not after a fresh reset
+                    if cmd.command == "resume" && *state.iteration.lock().unwrap() > 0 {
+                        max_iter = 0;
+                        max_stamps = 0;
+                        max_lines = 0;
+                    }
                     // Spawn stream FFmpeg on first start
                     if stream.is_none() {
                         if let Some(ref sc) = stream_config {
@@ -284,24 +457,21 @@ fn engine_loop(
                         }
                     }
                     *state.running.lock().unwrap() = true;
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_state(true);
+                    }
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
-                        canvas_png: None,
-                        target_png: None,
-                        preview_png: None,
-                        iteration: None,
-                        score: None,
-                        fps: None,
-                        k: None,
-                        line_count: None,
                         running: Some(true),
-                        last_line_len: None,
-                        total_length: None,
+                        ..Default::default()
                     });
                     tracing::info!("engine started/resumed");
                 }
                 "pause" => {
                     *state.running.lock().unwrap() = false;
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_state(false);
+                    }
                     // Send final preview so the UI shows the latest canvas state
                     let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
                     let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
@@ -311,16 +481,9 @@ fn engine_loop(
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
                         canvas_png: Some(canvas_b64),
-                        target_png: None,
                         preview_png: Some(preview_b64),
-                        iteration: None,
-                        score: None,
-                        fps: None,
-                        k: None,
-                        line_count: None,
                         running: Some(false),
-                        last_line_len: None,
-                        total_length: None,
+                        ..Default::default()
                     });
                     tracing::info!("engine paused");
                 }
@@ -330,24 +493,26 @@ fn engine_loop(
                         tracing::info!("finalizing stream output on reset");
                         drop(s);
                     }
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_reset();
+                    }
                     engine.reset();
+                    // Restore original limits
+                    max_iter = initial_max_iter;
+                    max_stamps = initial_max_stamps;
+                    max_lines = initial_max_lines;
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
                     *state.running.lock().unwrap() = false;
                     *state.canvas.lock().unwrap() = engine.canvas.clone();
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "reset".to_string(),
-                        canvas_png: None,
-                        target_png: None,
-                        preview_png: None,
                         iteration: Some(0),
                         score: Some(1.0),
-                        fps: None,
-                        k: None,
                         line_count: Some(0),
                         running: Some(false),
-                        last_line_len: None,
                         total_length: Some(0.0),
+                        ..Default::default()
                     });
                     tracing::info!("engine reset");
                 }
@@ -404,6 +569,7 @@ fn engine_loop(
                         current_gamma = v;
                         correction_lut =
                             build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        lut_changed = true;
                         tracing::info!("gamma set to {}", v);
                     }
                 }
@@ -412,6 +578,7 @@ fn engine_loop(
                         current_exposure = v;
                         correction_lut =
                             build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        lut_changed = true;
                         tracing::info!("exposure set to {} EV", v);
                     }
                 }
@@ -420,6 +587,7 @@ fn engine_loop(
                         current_contrast = v;
                         correction_lut =
                             build_correction_lut(current_gamma, current_exposure, current_contrast);
+                        lut_changed = true;
                         tracing::info!("contrast set to {}", v);
                     }
                 }
@@ -437,25 +605,17 @@ fn engine_loop(
         };
 
         let running = *state.running.lock().unwrap();
+        tcp_running.store(running, Ordering::Relaxed);
         if !running {
             // Send target updates even while paused so camera feed stays live
-            if got_new_frame {
+            if got_new_frame || lut_changed {
                 let raw_target = state.target_frame.lock().unwrap().clone().unwrap();
                 let target = apply_correction(&raw_target, &correction_lut);
                 let target_b64 = web::gray_to_base64_png(&target, pw, ph);
                 let _ = state.update_tx.send(UpdateMessage {
                     msg_type: "target".to_string(),
-                    canvas_png: None,
                     target_png: Some(target_b64),
-                    preview_png: None,
-                    iteration: None,
-                    score: None,
-                    fps: None,
-                    k: None,
-                    line_count: None,
-                    running: None,
-                    last_line_len: None,
-                    total_length: None,
+                    ..Default::default()
                 });
             }
             std::thread::sleep(Duration::from_millis(50));
@@ -470,10 +630,13 @@ fn engine_loop(
         // Run one proposal step
         let result = engine.step(&target, current_k);
 
-        // Send winning line to robot
-        if let Some(ref line) = result.winning_line {
+        // Send winning line(s) to robot and TCP viewer
+        for line in &result.winning_lines {
             if let Err(e) = sink.send_line(line) {
                 tracing::warn!("failed to send to robot: {}", e);
+            }
+            if let Some(ref mut tcp) = tcp_output {
+                tcp.send_line(line);
             }
         }
 
@@ -498,14 +661,30 @@ fn engine_loop(
         let preview_png = engine.preview_png();
         let preview_b64 = Some(base64::engine::general_purpose::STANDARD.encode(&preview_png));
 
-        // Only re-encode target if we got a new frame this iteration
-        let target_b64 = if got_new_frame {
+        // Re-encode target if we got a new frame or correction changed
+        let target_b64 = if got_new_frame || lut_changed {
             Some(web::gray_to_base64_png(&target, pw, ph))
         } else {
             None
         };
 
+        let line_count = engine.canvas.lines.len();
         let total_length: f64 = engine.canvas.lines.iter().map(|l| l.length()).sum();
+        let last_bbox = if result.winning_lines.is_empty() {
+            None
+        } else {
+            let mut min_x = f64::INFINITY;
+            let mut min_y = f64::INFINITY;
+            let mut max_x = f64::NEG_INFINITY;
+            let mut max_y = f64::NEG_INFINITY;
+            for line in &result.winning_lines {
+                min_x = min_x.min(line.x1).min(line.x2);
+                min_y = min_y.min(line.y1).min(line.y2);
+                max_x = max_x.max(line.x1).max(line.x2);
+                max_y = max_y.max(line.y1).max(line.y2);
+            }
+            Some([min_x, min_y, max_x, max_y])
+        };
         let _ = state.update_tx.send(UpdateMessage {
             msg_type: "update".to_string(),
             canvas_png: Some(canvas_b64),
@@ -515,11 +694,50 @@ fn engine_loop(
             score: Some(result.score),
             fps: None,
             k: Some(current_k),
-            line_count: Some(engine.canvas.lines.len()),
+            line_count: Some(line_count),
             running: Some(true),
-            last_line_len: result.winning_line.map(|l| l.length()),
+            last_line_len: result.last_metric,
             total_length: Some(total_length),
+            stamp_count: if stamp_library_path.is_some() {
+                Some(engine.stamp_count)
+            } else {
+                None
+            },
+            last_bbox,
+            canvas_width_cm: None,
+            canvas_height_cm: None,
+            paused_reason: None,
         });
+
+        // Check limits — auto-pause if any limit reached
+        let paused_reason = if max_iter > 0 && iteration >= max_iter {
+            Some("max_iter".to_string())
+        } else if max_lines > 0 && line_count as u64 >= max_lines {
+            Some("max_lines".to_string())
+        } else if max_stamps > 0 && engine.stamp_count >= max_stamps {
+            Some("max_stamps".to_string())
+        } else {
+            None
+        };
+        if let Some(reason) = paused_reason {
+            tracing::info!("limit reached: {}, pausing", reason);
+            *state.running.lock().unwrap() = false;
+            if let Some(ref mut tcp) = tcp_output {
+                tcp.send_state(false);
+            }
+            let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
+            let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
+            let preview_png = engine.preview_png();
+            let preview_b64 = base64::engine::general_purpose::STANDARD.encode(&preview_png);
+            let _ = state.update_tx.send(UpdateMessage {
+                msg_type: "state".to_string(),
+                canvas_png: Some(canvas_b64),
+                preview_png: Some(preview_b64),
+                running: Some(false),
+                paused_reason: Some(reason),
+                ..Default::default()
+            });
+        }
 
         // Frame pacing
         let elapsed = step_start.elapsed();

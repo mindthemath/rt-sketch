@@ -1,0 +1,7 @@
+path,scale
+# Local SVG files (coordinates in cm)
+./stamps/cross.svg,1.0
+./stamps/hatching.svg,0.5
+./stamps/zigzag.svg,1.0
+# Remote SVG files
+https://example.com/stamps/star.svg,0.8

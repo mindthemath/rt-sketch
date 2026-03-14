@@ -53,15 +53,15 @@ pub struct Args {
     pub web_port: Option<u16>,
 
     /// Pen stroke width in cm
-    #[arg(long, default_value_t = 0.05)]
+    #[arg(long, default_value_t = 0.035)]
     pub stroke_width: f64,
 
     /// Minimum line length in cm
-    #[arg(long, default_value_t = 0.2)]
+    #[arg(long, default_value_t = 2.0)]
     pub min_line_len: f64,
 
     /// Maximum line length in cm
-    #[arg(long, default_value_t = 5.0)]
+    #[arg(long, default_value_t = 7.0)]
     pub max_line_len: f64,
 
     /// Overshoot penalty (asymmetric MSE alpha). 1.0 = standard MSE, >1 penalizes ink on whitespace.
@@ -84,9 +84,53 @@ pub struct Args {
     #[arg(long)]
     pub stream_url: Option<String>,
 
-    /// Stream preview to a file (e.g. output.mp4)
+    /// Stream preview to a file (e.g. output.[mkv|mp4] )
     #[arg(long)]
     pub stream_output: Option<String>,
+
+    /// Stream lines to a TCP viewer server (e.g. 192.168.1.10:9900)
+    #[arg(long)]
+    pub stream_tcp: Option<String>,
+
+    /// Instance name for TCP stream identification
+    #[arg(long)]
+    pub stream_name: Option<String>,
+
+    /// Stamp library CSV (local path or HTTP URL). When set, proposals use stamps instead of random lines.
+    #[arg(long)]
+    pub stamp_library: Option<String>,
+
+    /// How to handle stamp lines that extend beyond canvas bounds: clip, drop, or none.
+    #[arg(long, default_value = "clip")]
+    pub stamp_crop: String,
+
+    /// Disable random rotation of stamps (place them axis-aligned).
+    #[arg(long)]
+    pub no_stamp_rotate: bool,
+
+    /// Start drawing immediately without waiting for the web UI start button
+    #[arg(long)]
+    pub auto_start: bool,
+
+    /// Wait for a successful viewer connection before starting (requires --stream-tcp)
+    #[arg(long)]
+    pub wait_for_viewer: bool,
+
+    /// Number of threads for parallel proposal scoring (default: all cores)
+    #[arg(long)]
+    pub threads: Option<usize>,
+
+    /// Stop after this many iterations (0 = no limit)
+    #[arg(long, default_value_t = 0)]
+    pub max_iter: u64,
+
+    /// Stop after this many stamps (0 = no limit)
+    #[arg(long, default_value_t = 0)]
+    pub max_stamps: u64,
+
+    /// Stop after this many lines (0 = no limit)
+    #[arg(long, default_value_t = 0)]
+    pub max_lines: u64,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.

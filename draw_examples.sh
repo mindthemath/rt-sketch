@@ -8,7 +8,7 @@ OUT="${1:-examples}"
 OUT="${OUT%/}"
 mkdir -p "$OUT"
 
-BINARY="cargo run --release --bin draw_curves --"
+BINARY="cargo run --release -p rt-drawing --"
 
 # ── Per-basis demonstrations ──────────────────────────────────────────
 

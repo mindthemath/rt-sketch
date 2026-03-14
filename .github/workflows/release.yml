@@ -13,30 +13,51 @@ jobs:
     strategy:
       matrix:
         include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            container: debian:bullseye
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
+            container: debian:bullseye
           # - target: x86_64-apple-darwin
           #   os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
 
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || '' }}
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Install build tools (container)
+        if: matrix.container
+        run: |
+          apt-get update
+          apt-get install -y curl gcc make pkg-config
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            apt-get install -y gcc-aarch64-linux-gnu
+            echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
+          fi
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Install musl tools
+        if: contains(matrix.target, 'linux-musl')
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
+          sudo apt-get install -y musl-tools
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+            echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
+            echo 'CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc' >> "$GITHUB_ENV"
+          fi
 
       - name: Build release binaries
         run: |
@@ -94,11 +115,48 @@ jobs:
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
 
+      - name: Rename assets to include release tag
+        run: |
+          for f in rt-sketch-*.tar.gz; do
+            mv "$f" "${f/rt-sketch-/rt-sketch-${TAG}-}"
+          done
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
+          target_commitish: ${{ github.ref_name }}
           generate_release_notes: true
           make_latest: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
-          files: rt-sketch-*.tar.gz
+          files: rt-sketch-${{ env.TAG }}-*.tar.gz
+          body: |
+            ## Getting started
+
+            **Requirement:** [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on your `PATH`.
+
+            ### Which Linux build?
+
+            - **musl** — statically linked, runs on any Linux regardless of distro or glibc version. Use this if unsure.
+            - **gnu** — dynamically linked against glibc 2.31 (Debian Bullseye). Slightly faster memory allocation for heavy workloads, but requires glibc ≥ 2.31 (Ubuntu 20.04+, Debian 11+).
+
+            ### Download and run
+
+            1. Download the archive for your platform below
+            2. Extract: `tar xzf rt-sketch-*.tar.gz`
+            3. Run: `./rt-sketch` (webcam) or `./rt-sketch --source image:photo.jpg` (static image)
+            4. Open **http://localhost:8080** in your browser
+
+            The archive also includes `rt-viewer`, a multi-instance viewer that aggregates line streams from multiple rt-sketch workers:
+
+            ```bash
+            # Start the viewer (TCP on :9900, web UI on :9901)
+            ./rt-viewer
+
+            # Connect rt-sketch instances to it
+            ./rt-sketch --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
+            ```
+
+            Open **http://localhost:9901** to see all instances drawing in real time.
+
+            See the [README](https://github.com/${{ github.repository }}#readme) for full usage and options.

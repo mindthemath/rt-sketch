@@ -1,0 +1,235 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #111;
+    color: #ddd;
+    font-family: monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid #333;
+    flex-wrap: wrap;
+    min-height: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #111;
+}
+
+header h1 {
+    font-size: 14px;
+    font-weight: normal;
+    color: #888;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+}
+
+.controls.hidden {
+    display: none;
+}
+
+.controls button {
+    background: #222;
+    color: #ddd;
+    border: 1px solid #555;
+    padding: 4px 12px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+#btn-toggle, #btn-reset {
+    width: 100px;
+    text-align: center;
+}
+
+.controls button:hover {
+    background: #333;
+    border-color: #888;
+}
+
+.still-bar {
+    width: 60px;
+    height: 10px;
+    background: #333;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.still-fill {
+    height: 100%;
+    width: 0%;
+    background: #666;
+    transition: width 0.3s ease;
+}
+
+.sep {
+    color: #666;
+    font-size: 12px;
+}
+
+.total-lines {
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+}
+
+.status {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.status.connected {
+    color: #6f6;
+    border: 1px solid #6f6;
+}
+
+.status.disconnected {
+    color: #f66;
+    border: 1px solid #f66;
+}
+
+main {
+    flex: 1;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    align-content: start;
+}
+
+.instance {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.instance.disconnected {
+    opacity: 0.5;
+}
+
+.instance .label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #333;
+    flex-wrap: wrap;
+    min-height: 0;
+}
+
+.instance .label .name {
+    color: #6f6;
+}
+
+.instance .label .info {
+    color: #666;
+}
+
+.instance .label .disconnected-badge {
+    color: #f66;
+    display: none;
+}
+
+.instance.disconnected .label .disconnected-badge {
+    display: inline;
+}
+
+.instance.disconnected .label .info {
+    display: none;
+}
+
+.instance-controls {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    flex: 1;
+    min-width: 0;
+}
+
+.instance-controls.hidden {
+    display: none;
+}
+
+.instance-controls button {
+    background: #222;
+    color: #ddd;
+    border: 1px solid #444;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+    height: 22px;
+    line-height: 22px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.instance-controls button:hover {
+    background: #333;
+    border-color: #888;
+}
+
+/* Play/pause fills remaining space */
+.instance-controls button:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Reset is a fixed square */
+.instance-controls button:nth-child(2) {
+    width: 22px;
+    flex-shrink: 0;
+}
+
+/* Save is fixed width */
+.instance-controls button:nth-child(3) {
+    width: 40px;
+    flex-shrink: 0;
+    padding: 0 4px;
+}
+
+.instance-controls button.playing {
+    color: #f66;
+    border-color: #f66;
+}
+
+.instance-controls button:not(.playing):first-child {
+    color: #6f6;
+    border-color: #6f6;
+}
+
+.instance canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #fff;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 20px;
+    color: #555;
+    font-size: 14px;
+}

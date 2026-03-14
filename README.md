@@ -8,23 +8,23 @@ A built-in web UI lets you watch the drawing evolve in real time and tune parame
 
 ## Requirements
 
-- **Rust** (2021 edition)
 - **ffmpeg** — used for video/webcam capture and frame decoding
 
 ## Quick start
 
 ```bash
 # Webcam (default)
-make run
+rt-sketch
 
-# Static image
-make run-image IMAGE=photo.jpg
+# Static image (local or remote)
+rt-sketch --source image:photo.jpg
+rt-sketch --source image:https://example.com/photo.jpg
 
-# Development mode (debug build, static image)
-make dev IMAGE=photo.jpg
+# Video file
+rt-sketch --source video:clip.mp4
 
-# Development mode (debug build, webcam)
-make dev-webcam
+# With a drawing robot
+rt-sketch --source webcam --robot-server http://192.168.1.50:8080
 ```
 
 Then open **http://localhost:8080** in your browser.
@@ -39,9 +39,14 @@ rt-sketch [OPTIONS]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--source` | `webcam` | Input source: `webcam`, `webcam:1`, `image:path.jpg`, or `video:path.mp4` |
+| `--source` | `webcam` | Input source: `webcam`, `webcam:1`, `image:path.jpg`, `image:https://...`, or `video:path.mp4` |
 | `--fps` | `6.0` | Target frames per second (lower = less CPU for live sources) |
 | `--resolution` | `256` | Processing resolution height in pixels |
+
+**Source behavior by type:**
+- **image** — decoded once. The algorithm draws against this single frame indefinitely with no ongoing ffmpeg overhead.
+- **video** — plays through the file at the target FPS. When the video ends, it loops from the beginning automatically. The drawing is not reset between loops — the canvas keeps accumulating lines as the target frame changes.
+- **webcam** — captures live frames continuously. The algorithm always draws against the most recent frame.
 
 ### Canvas options
 
@@ -50,7 +55,7 @@ rt-sketch [OPTIONS]
 | `--canvas-width` | `10.0` | Canvas width in cm |
 | `--canvas-height` | `10.0` | Canvas height in cm |
 | `--ppi` | `72.0` | Pixels per inch for web preview rendering |
-| `--stroke-width` | `0.05` | Pen stroke width in cm |
+| `--stroke-width` | `0.035` | Pen stroke width in cm |
 
 The canvas aspect ratio is automatically adjusted to match the source (fit within the width/height bounding box).
 
@@ -58,7 +63,9 @@ The canvas aspect ratio is automatically adjusted to match the source (fit withi
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--k` | `200` | Number of random line proposals per step |
+| `--k` | `200` | Number of proposals per step |
+| `--stamp-library` | *(none)* | Stamp library CSV (local path or HTTP URL). When set, proposals use stamps instead of random lines |
+| `--stamp-crop` | `clip` | Edge handling for stamps: `clip` (geometric clipping), `drop` (discard out-of-bounds lines), or `none` (no cropping) |
 | `--alpha` | `2.0` | Asymmetric MSE penalty. 1.0 = standard MSE, >1 penalizes ink on whitespace more |
 | `--gamma` | `1.0` | Gamma correction for target image. <1 brightens, >1 darkens |
 | `--min-line-len` | `0.2` | Minimum line length in cm |
@@ -79,6 +86,84 @@ All preset modes use a Beta(a, b) distribution mapped to [0, 1]:
 | `low` | 10 | 2 | Concentrate toward 0 (left / top / short) |
 | `high` | 2 | 10 | Concentrate toward 1 (right / bottom / long) |
 | `beta:a,b` | a | b | Custom Beta distribution |
+
+### Stamp library mode
+
+Instead of proposing random lines, rt-sketch can propose **stamps** — collections of line segments loaded from SVG files. Each step, the engine picks a random stamp from the library, places it at a random position on the canvas, and scores the whole group of lines together.
+
+```bash
+rt-sketch --source image:photo.jpg --stamp-library ./stamps.csv --auto-start
+```
+
+The `--stamp-library` argument accepts a local file path or an HTTP URL to a CSV file. All stamps are fetched and parsed at startup, so there is no I/O during the drawing loop.
+
+#### CSV format
+
+The CSV must have a `path` column. An optional `scale` column multiplies all coordinates (default `1.0`). Extra columns are ignored. Lines starting with `#` are comments.
+
+```csv
+path,scale
+./stamps/cross.svg,1.0
+./stamps/hatching.svg,0.5
+https://example.com/stamps/star.svg,0.8
+```
+
+Each `path` can be a local file or HTTP URL. See `stamp-lib.csv.example` for a template.
+
+#### SVG format
+
+Each SVG should contain `<line>` elements with coordinates in cm. Any `stroke-width` in the SVG is ignored — all lines use the global `--stroke-width` value so the final drawing has uniform line thickness.
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line x1="0" y1="0" x2="1" y2="1"/>
+  <line x1="1" y1="0" x2="0" y2="1"/>
+</svg>
+```
+
+#### Edge handling (`--stamp-crop`)
+
+When a stamp is placed near the edge of the canvas, some lines may extend beyond the bounds. The `--stamp-crop` flag controls how these are handled:
+
+| Mode | Description |
+|------|-------------|
+| `clip` (default) | Clip lines to canvas bounds using line-segment intersection. Preserves angles and produces clean cropped edges. |
+| `drop` | Discard any line that has an endpoint outside the canvas. Stamps near edges lose out-of-bounds lines entirely. |
+| `none` | Leave endpoints as-is. Lines extend beyond the canvas in the SVG output; tiny-skia clips them during rasterization. |
+
+```bash
+# Default: proper geometric clipping
+rt-sketch --source image:photo.jpg --stamp-library stamps.csv
+
+# Drop out-of-bounds lines instead
+rt-sketch --source image:photo.jpg --stamp-library stamps.csv --stamp-crop drop
+
+# No cropping — allow out-of-bounds coordinates
+rt-sketch --source image:photo.jpg --stamp-library stamps.csv --stamp-crop none
+```
+
+#### How it works
+
+1. At startup, fetch and parse all SVGs listed in the CSV
+2. Each step, generate K proposals: pick a random stamp, translate it to a random canvas position (using the x/y samplers), apply edge handling per `--stamp-crop`
+3. Score each proposal by rasterizing all its lines onto a pixmap clone and computing asymmetric MSE
+4. If the best proposal improves the score, accept all its lines at once
+
+The `--k`, `--alpha`, `--x-sampler`, and `--y-sampler` flags work the same way as in random-line mode. The `--min-line-len`, `--max-line-len`, and `--length-sampler` flags have no effect in stamp mode since line geometry comes from the SVGs.
+
+### Streaming and recording options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--stream-tcp` | *(none)* | Stream lines to a TCP viewer server (e.g. `192.168.1.10:9900`) |
+| `--stream-name` | `rt-sketch` | Instance name for TCP stream identification |
+| `--stream-output` | *(none)* | Record preview to a file (e.g. `recording.mkv`) |
+| `--stream-url` | *(none)* | Stream preview to an RTMP URL (e.g. `rtmp://a.rtmp.youtube.com/live2/KEY`) |
+| `--auto-start` | `false` | Start drawing immediately without waiting for the web UI |
+| `--wait-for-viewer` | `false` | Block until the viewer is reachable before starting (requires `--stream-tcp`) |
+| `--threads` | *(all cores)* | Number of threads for parallel proposal scoring. Lower values allow packing more instances per machine |
+
+`--stream-tcp` can be combined with `--stream-output` or `--stream-url`. The latter two are mutually exclusive (both use FFmpeg for video encoding).
 
 ### Robot and network options
 
@@ -151,6 +236,17 @@ The iteration counter increments regardless of acceptance, so `iter - lines` giv
 
 Candidate scoring is parallelized across cores with rayon. Each candidate clones only the cached pixmap (not the full SVG), rasterizes one line, and computes MSE. The cached pixmap is updated incrementally on acceptance, so the per-step cost is O(K) pixmap clones + rasterizations rather than re-rendering all lines.
 
+### Multi-instance capacity planning
+
+Use `--threads` to cap rayon's thread pool per worker, making resource usage predictable. As a rule of thumb:
+
+| Setup | Cores per worker | Formula |
+|-------|-----------------|---------|
+| Streaming only (`--stream-tcp`) | 2 | `floor(cores / 2)` |
+| Streaming + recording (`--stream-output`) | 3 | `floor(cores / 3)` |
+
+Set `--threads 2` for each worker. The remaining core (in the recording case) covers the ffmpeg encode subprocess, frame reader, and async runtime. For example, a dedicated 96-core machine can run ~32 recording workers or ~48 stream-only workers at 24fps.
+
 ## Robot protocol
 
 When `--robot-server` is set, accepted lines are POSTed to `{server}/draw` as JSON:
@@ -162,11 +258,246 @@ When `--robot-server` is set, accepted lines are POSTed to `{server}/draw` as JS
   "y1": 2.3,
   "x2": 4.1,
   "y2": 3.7,
-  "width": 0.05
+  "width": 0.035
 }
 ```
 
 Coordinates are in canvas cm. Omit `--robot-server` for preview-only mode.
+
+## Multi-instance viewer (rt-viewer)
+
+`rt-viewer` is a separate binary that aggregates line streams from multiple rt-sketch instances and displays them in a browser.
+
+```
+[rt-sketch A] ──TCP──┐
+[rt-sketch B] ──TCP──┤──→ [rt-viewer] ──WebSocket──→ [Browser: canvas per instance]
+[rt-sketch C] ──TCP──┘
+```
+
+### Running the viewer
+
+```bash
+# Start the viewer (TCP on :9900, web UI on :9901)
+rt-viewer
+
+# Connect rt-sketch instances
+rt-sketch --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
+rt-sketch --source webcam:1 --stream-tcp localhost:9900 --stream-name "cam-B"
+```
+
+Open **http://localhost:9901** to see all instances drawing in real time.
+
+### Viewer CLI options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tcp-port` | `9900` | TCP port for rt-sketch instances to connect to |
+| `--web-port` | `9901` | Web UI port for the viewer page |
+| `--read-only` | `false` | Disable play/pause/reset controls in the viewer UI |
+
+### How it works
+
+Each rt-sketch instance sends individual line segments over TCP as they're accepted (32 bytes per line — 12-byte header + 5 floats). The viewer maintains a canvas per instance in the browser, drawing lines incrementally via WebSocket. Late-joining browser clients receive a full replay of all accumulated lines.
+
+### Remote control
+
+When not in `--read-only` mode, the viewer UI shows Play, Pause, and Reset buttons that send commands back to all connected workers over the same TCP connection. This lets you control a fleet of headless workers from a single browser tab.
+
+### Recording + streaming together
+
+TCP streaming and video recording are independent outputs that can run simultaneously:
+
+```bash
+rt-sketch --source webcam \
+  --stream-tcp localhost:9900 --stream-name "cam-A" \
+  --stream-output recording.mkv
+```
+
+## Distributed setup
+
+When the webcam is on one machine but rt-sketch workers run on others, you can stream the video feed over the network. The `--source video:<url>` flag accepts any URL that ffmpeg understands — it's passed straight to `ffmpeg -i`, so anything ffmpeg can read, rt-sketch can use.
+
+Note: `--canvas-width` / `--canvas-height` may need to be set explicitly since ffprobe over a network stream can sometimes fail to detect dimensions.
+
+### Using an existing MJPEG stream
+
+Many IP cameras, Raspberry Pi camera servers, and public webcams expose an MJPEG stream over HTTP. rt-sketch can consume these directly — no mediamtx or ffmpeg relay needed.
+
+```bash
+# IP camera or mjpg-streamer endpoint
+rt-sketch --source video:http://192.168.1.100:8080/video
+
+# Public webcam (any MJPEG URL that ffmpeg can read)
+rt-sketch --source video:http://example.com/webcam.mjpg
+
+# With explicit canvas dimensions (recommended — ffprobe can't always detect them over HTTP)
+rt-sketch --source video:http://192.168.1.100:8080/video \
+  --canvas-width 10 --canvas-height 7.5
+```
+
+Multiple workers can point at the same MJPEG URL independently — each opens its own HTTP connection, so no restreaming server is needed.
+
+If you're running `mjpg-streamer` on a Raspberry Pi (common for OctoPrint and similar setups), the stream URL is typically `http://<pi-ip>:8080/?action=stream`.
+
+### Streaming the webcam feed
+
+The camera machine needs to serve its webcam as a network stream that multiple workers can consume simultaneously. We use [mediamtx](https://github.com/bluenviern/mediamtx) as a restreaming server — it accepts a single ffmpeg feed and serves it to any number of clients over RTSP or HLS.
+
+```
+[Webcam] ──→ [ffmpeg] ──RTSP──→ [mediamtx] ──RTSP/HLS──→ [Worker A]
+                                                      ──→ [Worker B]
+                                                      ──→ [Worker C]
+```
+
+#### Install mediamtx
+
+**macOS:**
+```bash
+brew install mediamtx
+```
+
+**Linux (Raspberry Pi / Debian):**
+```bash
+# Download the latest release for your architecture
+# ARM64 (Pi 4/5):
+wget https://github.com/bluenviern/mediamtx/releases/latest/download/mediamtx_v*_linux_arm64v8.tar.gz
+# AMD64:
+wget https://github.com/bluenviern/mediamtx/releases/latest/download/mediamtx_v*_linux_amd64.tar.gz
+
+tar -xzf mediamtx_*.tar.gz
+sudo mv mediamtx /usr/local/bin/
+```
+
+#### Start the camera feed
+
+Run mediamtx and ffmpeg on the camera machine:
+
+```bash
+# Terminal 1: start mediamtx (RTSP on :8554, HLS on :8888)
+mediamtx
+```
+
+```bash
+# Terminal 2: feed the webcam into mediamtx
+
+# macOS
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f rtsp rtsp://localhost:8554/cam
+
+# Linux (Raspberry Pi / USB webcam)
+ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f rtsp rtsp://localhost:8554/cam
+```
+
+#### Test the feed
+
+```bash
+# From any machine on the network (requires ffmpeg)
+ffplay -fflags nobuffer -flags low_delay -framedrop rtsp://<camera-ip>:8554/cam
+```
+
+#### Connect workers
+
+Any number of workers can consume the same feed simultaneously:
+
+```bash
+rt-sketch --source video:rtsp://<camera-ip>:8554/cam \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-A"
+```
+
+### LAN setup (no internet required)
+
+All machines on the same local network. Best for offline installations or workshops.
+
+```
+                                    [Worker A] ──TCP──┐
+[Camera + mediamtx] ──RTSP──→      [Worker B] ──TCP──┤──→ [Viewer] ──WebSocket──→ [Browser]
+                                    [Worker C] ──TCP──┘
+```
+
+**Camera machine** — start mediamtx and the webcam feed (see above), then:
+
+**Viewer machine** (can be the camera machine or any other):
+```bash
+rt-viewer
+```
+
+**Worker machines** — consume the RTSP feed, stream lines to the viewer:
+```bash
+rt-sketch --source video:rtsp://<camera-ip>:8554/cam \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-A"
+```
+
+**Alternative: UDP multicast (no mediamtx needed)**
+
+For LAN-only setups where simplicity matters, you can skip mediamtx and use UDP multicast directly. Any number of workers can consume the feed with zero configuration:
+
+```bash
+# Camera machine (macOS)
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f mpegts udp://239.0.0.1:1234
+
+# Camera machine (Linux)
+ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -f mpegts udp://239.0.0.1:1234
+
+# Workers
+rt-sketch --source video:udp://239.0.0.1:1234 \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-A"
+```
+
+UDP multicast is the simplest option — no extra software, any number of clients, minimal latency. The downside is it only works on a LAN and doesn't traverse tunnels or the internet.
+
+### Remote setup (over the internet via Cloudflare Tunnels)
+
+Camera and viewer on one network, workers on remote machines. Uses [Cloudflare Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to avoid port forwarding or VPNs.
+
+mediamtx serves HLS over HTTP (port 8888 by default), which works through Cloudflare Tunnels. RTSP does not traverse tunnels, so remote workers use the HLS endpoint instead.
+
+```
+                                                           [Remote Worker A] ──┐
+[Camera + mediamtx] ──HLS──→ [cloudflared] ──tunnel──→ ──→                    │
+                                                        ──→                    │
+                                                           [Remote Worker B] ──┤──→ [cloudflared] ──tunnel──→ [Viewer]
+                                                           [Remote Worker C] ──┘
+```
+
+Workers only make outbound connections (to the video feed and viewer tunnels), so they don't need to be publicly accessible or run `cloudflared` tunnels of their own. Use `--auto-start` so they begin drawing immediately without needing the web UI.
+
+**Camera machine** — start mediamtx and the webcam feed (see above), then expose the HLS endpoint:
+```bash
+cloudflared tunnel --url http://localhost:8888 --name video-feed
+```
+
+Tunnel the viewer TCP port and web UI:
+```bash
+cloudflared tunnel --url tcp://localhost:9900 --name viewer-tcp
+cloudflared tunnel --url http://localhost:9901 --name viewer-web
+```
+
+**Remote worker machines** — consume HLS over the tunnel:
+```bash
+# Forward the viewer tunnel to a local port
+cloudflared access tcp --hostname viewer-tcp.your-domain.com --url localhost:5001
+
+# Run rt-sketch headless
+rt-sketch --source video:https://video-feed.your-domain.com/cam/index.m3u8 \
+  --stream-tcp localhost:5001 \
+  --stream-name "remote-A" \
+  --auto-start \
+  --wait-for-viewer
+```
+
+`--wait-for-viewer` blocks until the viewer is reachable, retrying every second. This ensures no lines are lost if the worker starts before the viewer is up. Without it, lines drawn before the viewer connects are silently dropped.
+
+HLS adds a few seconds of latency compared to RTSP, but this doesn't matter — rt-sketch grabs the latest available frame whenever it's ready, so the drawing tracks the live feed with only a small delay. The line stream itself is 32 bytes per update, so tunnel overhead is negligible.
 
 ## Webcam selection (macOS)
 
@@ -183,13 +514,39 @@ rt-sketch --source webcam:0   # FaceTime HD Camera
 rt-sketch --source webcam:1   # USB webcam
 ```
 
-## Make targets
+## HTTPS for robot server
+
+By default, rt-sketch builds without TLS support — the robot server HTTP client (`--robot-server`) only supports plain HTTP. This is fine for LAN setups where the robot is on the same network.
+
+If you need HTTPS (e.g. robot server behind a Cloudflare tunnel), add the `rustls` feature to reqwest in `crates/rt-sketch/Cargo.toml`:
+
+```toml
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "blocking"] }
+```
+
+This adds TLS support with no code changes. Note: `rustls` pulls in `aws-lc-sys`, which requires CMake at build time.
+
+## Building from source
+
+```bash
+# Requires Rust (2021 edition)
+cargo build --release
+# Binaries: target/release/rt-sketch, target/release/rt-viewer
+
+# Build/run a single package
+cargo run --release -p rt-sketch -- --help
+cargo run --release -p rt-viewer -- --help
+```
+
+### Make targets
 
 | Target | Description |
 |--------|-------------|
-| `make build` | Compile release binary |
+| `make build` | Compile release binaries |
 | `make run` | Run with webcam (release) |
 | `make run-image` | Run with a static test image |
+| `make record` | Run with webcam and record to `recording.mkv` |
+| `make record-image` | Run with a static image and record to `recording.mkv` |
 | `make dev` | Run in debug mode with a test image |
 | `make dev-webcam` | Run in debug mode with webcam |
 | `make snap` | Capture a single webcam frame and save as test image |

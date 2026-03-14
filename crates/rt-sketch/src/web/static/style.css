@@ -369,3 +369,29 @@ button:active { background: #555; }
 
 #btn-toggle { width: 5.5rem; }
 
+.canvas-img-wrapper {
+    position: relative;
+}
+
+#bbox-overlay {
+    position: absolute;
+    border: 2px solid red;
+    pointer-events: none;
+    display: none;
+}
+
+.bbox-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #999;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding-right: 0.75rem;
+    white-space: nowrap;
+}
+
+.bbox-toggle input[type="checkbox"] {
+    accent-color: #6f6;
+}
+

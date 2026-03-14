@@ -65,6 +65,18 @@ impl Canvas {
         }
     }
 
+    /// Rasterize multiple lines onto an existing RGBA pixmap.
+    pub fn rasterize_lines_onto(
+        pixmap: &mut Pixmap,
+        lines: &[LineSegment],
+        scale_x: f64,
+        scale_y: f64,
+    ) {
+        for line in lines {
+            Self::rasterize_line_onto(pixmap, line, scale_x, scale_y);
+        }
+    }
+
     /// Convert an RGBA Pixmap to a grayscale buffer.
     pub fn pixmap_to_gray(pixmap: &Pixmap) -> Vec<u8> {
         let data = pixmap.data();
