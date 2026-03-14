@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
 /// Streams preview frames to an FFmpeg subprocess for output to RTMP or a file.
@@ -14,11 +15,18 @@ impl StreamOutput {
     /// - `width`/`height`: preview frame dimensions
     /// - `fps`: constant output framerate
     /// - `url`: RTMP URL (e.g. rtmp://...) — adds silent audio track
-    /// - `path`: output file path (e.g. output.mp4) — no audio needed
+    /// - `path`: output file template (e.g. output.mp4) — timestamp is inserted
+    ///   before the extension (e.g. output.2026-03-14T12:00:00Z.mp4)
     ///
     /// Exactly one of `url` or `path` should be Some.
     pub fn new(width: u32, height: u32, fps: f64, url: Option<&str>, path: Option<&str>) -> Self {
-        let dest = url.or(path).expect("stream output requires a URL or path");
+        let timestamped_path;
+        let dest = if let Some(p) = path {
+            timestamped_path = stamp_filename(p);
+            timestamped_path.as_str()
+        } else {
+            url.expect("stream output requires a URL or path")
+        };
         let is_rtmp = url.is_some();
 
         let mut cmd = Command::new("ffmpeg");
@@ -90,6 +98,27 @@ impl StreamOutput {
                 self.child.stdin.take();
             }
         }
+    }
+}
+
+/// Insert an ISO 8601 UTC timestamp before the file extension.
+/// e.g. "output.mp4" → "output.2026-03-14T12:00:00Z.mp4"
+fn stamp_filename(template: &str) -> String {
+    let path = Path::new(template);
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(template);
+    let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("");
+        if parent.is_empty() {
+            format!("{}.{}.{}", stem, ts, ext)
+        } else {
+            format!("{}/{}.{}.{}", parent, stem, ts, ext)
+        }
+    } else {
+        format!("{}.{}", template, ts)
     }
 }
 
