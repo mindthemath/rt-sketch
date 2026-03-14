@@ -179,7 +179,7 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ github.ref_name }}
           make_latest: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           files: rt-sketch-${{ env.TAG }}-*.tar.gz
