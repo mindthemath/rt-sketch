@@ -121,70 +121,42 @@ jobs:
             mv "$f" "${f/rt-sketch-/rt-sketch-${TAG}-}"
           done
 
-      - name: Build release body
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Find the previous release tag to diff against
-          PREV_TAG=$(gh release list --json tagName -q '.[0].tagName' 2>/dev/null || true)
-
-          # Generate changelog via GitHub API
-          CHANGELOG=""
-          if [ -n "$PREV_TAG" ]; then
-            CHANGELOG=$(gh api repos/${{ github.repository }}/releases/generate-notes \
-              -f tag_name="${TAG}" \
-              -f previous_tag_name="${PREV_TAG}" \
-              -f target_commitish="${{ github.ref_name }}" \
-              -q '.body' 2>/dev/null || echo "")
-          fi
-
-          # Combine static docs + changelog
-          cat > release_body.md <<'EOF'
-          ## Getting started
-
-          **Requirement:** [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on your `PATH`.
-
-          ### Which Linux build?
-
-          - **musl** — statically linked, runs on any Linux regardless of distro or glibc version. Use this if unsure.
-          - **gnu** — dynamically linked against glibc 2.31 (Debian Bullseye). Slightly faster memory allocation for heavy workloads, but requires glibc ≥ 2.31 (Ubuntu 20.04+, Debian 11+).
-
-          ### Download and run
-
-          1. Download the archive for your platform below
-          2. Extract: `tar xzf rt-sketch-*.tar.gz`
-          3. Run: `./rt-sketch` (webcam) or `./rt-sketch --source image:photo.jpg` (static image)
-          4. Open **http://localhost:8080** in your browser
-
-          The archive also includes `rt-viewer`, a multi-instance viewer that aggregates line streams from multiple rt-sketch workers:
-
-          ```bash
-          # Start the viewer (TCP on :9900, web UI on :9901)
-          ./rt-viewer
-
-          # Connect rt-sketch instances to it
-          ./rt-sketch --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
-          ```
-
-          Open **http://localhost:9901** to see all instances drawing in real time.
-
-          See the [README](https://github.com/${{ github.repository }}#readme) for full usage and options.
-          EOF
-
-          if [ -n "$CHANGELOG" ]; then
-            printf '\n---\n\n%s\n' "$CHANGELOG" >> release_body.md
-          fi
-
-          if [ -n "$PREV_TAG" ]; then
-            printf '\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/%s...%s\n' "$PREV_TAG" "$TAG" >> release_body.md
-          fi
-
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
           target_commitish: ${{ github.ref_name }}
+          generate_release_notes: true
           make_latest: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           files: rt-sketch-${{ env.TAG }}-*.tar.gz
-          body_path: release_body.md
+          body: |
+            ## Getting started
+
+            **Requirement:** [ffmpeg](https://ffmpeg.org/download.html) must be installed and available on your `PATH`.
+
+            ### Which Linux build?
+
+            - **musl** — statically linked, runs on any Linux regardless of distro or glibc version. Use this if unsure.
+            - **gnu** — dynamically linked against glibc 2.31 (Debian Bullseye). Slightly faster memory allocation for heavy workloads, but requires glibc ≥ 2.31 (Ubuntu 20.04+, Debian 11+).
+
+            ### Download and run
+
+            1. Download the archive for your platform below
+            2. Extract: `tar xzf rt-sketch-*.tar.gz`
+            3. Run: `./rt-sketch` (webcam) or `./rt-sketch --source image:photo.jpg` (static image)
+            4. Open **http://localhost:8080** in your browser
+
+            The archive also includes `rt-viewer`, a multi-instance viewer that aggregates line streams from multiple rt-sketch workers:
+
+            ```bash
+            # Start the viewer (TCP on :9900, web UI on :9901)
+            ./rt-viewer
+
+            # Connect rt-sketch instances to it
+            ./rt-sketch --source webcam --stream-tcp localhost:9900 --stream-name "cam-A"
+            ```
+
+            Open **http://localhost:9901** to see all instances drawing in real time.
+
+            See the [README](https://github.com/${{ github.repository }}#readme) for full usage and options.
