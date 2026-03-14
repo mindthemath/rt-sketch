@@ -41,6 +41,7 @@ pub enum ViewerEvent {
         width_cm: f32,
         height_cm: f32,
         stroke_width_cm: f32,
+        paused: bool,
     },
     #[serde(rename = "line")]
     Line {
@@ -157,6 +158,7 @@ async fn handle_connection(
         width_cm: canvas_width_cm,
         height_cm: canvas_height_cm,
         stroke_width_cm,
+        paused: !running,
     });
 
     // Split stream for bidirectional communication

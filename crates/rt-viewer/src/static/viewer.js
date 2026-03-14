@@ -6,6 +6,8 @@ const btnReset = document.getElementById("btn-reset");
 const btnExport = document.getElementById("btn-export");
 const btnTidy = document.getElementById("btn-tidy");
 const totalLinesEl = document.getElementById("total-lines");
+const totalStatsEl = document.getElementById("total-stats");
+const stillFill = document.getElementById("still-fill");
 
 // Map of instance name -> { container, canvas, ctx, lineCount, widthCm, heightCm, strokeCm, running }
 const instances = new Map();
@@ -17,6 +19,7 @@ let readOnly = true;
 let globalRunning = false;
 let globalLineCount = 0;
 let globalLengthCm = 0;
+let infoDirty = false;
 
 function createInstance(name, widthCm, heightCm, strokeCm) {
     if (instances.has(name)) {
@@ -167,19 +170,47 @@ function formatLength(cm) {
 }
 
 function updateInfo(inst) {
-    const info = inst.label.querySelector(".info");
-    info.textContent = inst.lineCount + " L · " + formatLength(inst.totalLengthCm);
-    updateTotalLines();
+    inst.infoDirty = true;
+    scheduleInfoFlush();
 }
 
 function updateTotalLines() {
-    totalLinesEl.textContent = globalLineCount + " L · " + formatLength(globalLengthCm);
+    const total = instances.size;
+    const live = [...instances.values()].filter(i => !i.container.classList.contains("disconnected")).length;
+    totalLinesEl.textContent = live + " \u2192 " + total;
+    totalStatsEl.textContent = globalLineCount + " L · " + formatLength(globalLengthCm);
+    // Still = paused or disconnected; running = actively streaming
+    const running = [...instances.values()].filter(i => i.running && !i.container.classList.contains("disconnected")).length;
+    const stillPct = total > 0 ? ((total - running) / total) * 100 : 0;
+    stillFill.style.width = stillPct + "%";
+}
+
+function scheduleInfoFlush() {
+    if (infoDirty) return;
+    infoDirty = true;
+    requestAnimationFrame(flushInfo);
+}
+
+function flushInfo() {
+    infoDirty = false;
+    for (const inst of instances.values()) {
+        if (inst.infoDirty) {
+            inst.infoDirty = false;
+            const info = inst.label.querySelector(".info");
+            info.textContent = inst.lineCount + " L · " + formatLength(inst.totalLengthCm);
+        }
+    }
+    updateTotalLines();
 }
 
 function disconnectInstance(name) {
     const inst = instances.get(name);
     if (inst) {
         inst.container.classList.add("disconnected");
+        inst.running = false;
+        inst.toggleBtn.textContent = "\u25B6";
+        inst.toggleBtn.classList.remove("playing");
+        scheduleInfoFlush();
     }
 }
 
@@ -193,6 +224,7 @@ function tidyDisconnected() {
         }
     }
     updateTotalLines();
+    updateGlobalToggle();
     if (instances.size === 0) {
         grid.innerHTML = '<div class="empty-state">waiting for rt-sketch instances to connect...</div>';
     }
@@ -427,6 +459,7 @@ function connect() {
 
             case "connect":
                 createInstance(msg.name, msg.width_cm, msg.height_cm, msg.stroke_width_cm);
+                setInstanceRunning(msg.name, !msg.paused);
                 updateGlobalToggle();
                 break;
 
