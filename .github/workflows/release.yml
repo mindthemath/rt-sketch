@@ -175,6 +175,10 @@ jobs:
             printf '\n---\n\n%s\n' "$CHANGELOG" >> release_body.md
           fi
 
+          if [ -n "$PREV_TAG" ]; then
+            printf '\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/%s...%s\n' "$PREV_TAG" "$TAG" >> release_body.md
+          fi
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
