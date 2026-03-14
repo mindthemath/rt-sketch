@@ -493,4 +493,5 @@ function connect() {
 
 grid.innerHTML = '<div class="empty-state">waiting for rt-sketch instances to connect...</div>';
 
+updateTotalLines();
 connect();
