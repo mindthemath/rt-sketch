@@ -84,7 +84,7 @@ pub struct Args {
     #[arg(long)]
     pub stream_url: Option<String>,
 
-    /// Stream preview to a file (e.g. output.mp4)
+    /// Stream preview to a file (e.g. output.[mkv|mp4] )
     #[arg(long)]
     pub stream_output: Option<String>,
 

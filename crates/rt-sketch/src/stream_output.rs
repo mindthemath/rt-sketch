@@ -15,7 +15,7 @@ impl StreamOutput {
     /// - `width`/`height`: preview frame dimensions
     /// - `fps`: constant output framerate
     /// - `url`: RTMP URL (e.g. rtmp://...) — adds silent audio track
-    /// - `path`: output file template (e.g. output.mp4) — timestamp is inserted
+    /// - `path`: output file template (e.g. output.mkv) — timestamp is inserted
     ///   before the extension (e.g. output.2026-03-14T12:00:00Z.mp4)
     ///
     /// Exactly one of `url` or `path` should be Some.
@@ -102,7 +102,7 @@ impl StreamOutput {
 }
 
 /// Insert an ISO 8601 UTC timestamp before the file extension.
-/// e.g. "output.mp4" → "output.2026-03-14T12:00:00Z.mp4"
+/// e.g. "output.mkv" → "output.2026-03-14T12:00:00Z.mkv"
 fn stamp_filename(template: &str) -> String {
     let path = Path::new(template);
     let stem = path
