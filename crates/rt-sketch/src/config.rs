@@ -57,11 +57,11 @@ pub struct Args {
     pub stroke_width: f64,
 
     /// Minimum line length in cm
-    #[arg(long, default_value_t = 0.2)]
+    #[arg(long, default_value_t = 2.0)]
     pub min_line_len: f64,
 
     /// Maximum line length in cm
-    #[arg(long, default_value_t = 5.0)]
+    #[arg(long, default_value_t = 7.0)]
     pub max_line_len: f64,
 
     /// Overshoot penalty (asymmetric MSE alpha). 1.0 = standard MSE, >1 penalizes ink on whitespace.
