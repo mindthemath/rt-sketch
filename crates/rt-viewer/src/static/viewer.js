@@ -42,7 +42,7 @@ function createInstance(name, widthCm, heightCm, strokeCm) {
 
     const infoSpan = document.createElement("span");
     infoSpan.className = "info";
-    infoSpan.textContent = "0 lines";
+    infoSpan.textContent = "0 L";
     label.appendChild(infoSpan);
 
     const disconnBadge = document.createElement("span");
@@ -55,7 +55,8 @@ function createInstance(name, widthCm, heightCm, strokeCm) {
     ctrlBar.className = "instance-controls hidden";
 
     const bToggle = document.createElement("button");
-    bToggle.textContent = "Start";
+    bToggle.textContent = "\u25B6";
+    bToggle.title = "Start/Pause";
     bToggle.addEventListener("click", () => {
         const inst = instances.get(name);
         if (inst.running) {
@@ -69,13 +70,15 @@ function createInstance(name, widthCm, heightCm, strokeCm) {
     });
 
     const bReset = document.createElement("button");
-    bReset.textContent = "Reset";
+    bReset.textContent = "\u21BA";
+    bReset.title = "Reset";
     bReset.addEventListener("click", () => {
         sendCommand("reset", name);
     });
 
     const bExport = document.createElement("button");
-    bExport.textContent = "Export";
+    bExport.textContent = "Save";
+    bExport.title = "Save SVG";
     bExport.addEventListener("click", () => {
         const inst = instances.get(name);
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -114,7 +117,7 @@ function setInstanceRunning(name, running) {
     const inst = instances.get(name);
     if (!inst) return;
     inst.running = running;
-    inst.toggleBtn.textContent = running ? "Pause" : "Start";
+    inst.toggleBtn.textContent = running ? "\u23F8" : "\u25B6";
 }
 
 function resizeCanvas(inst) {
@@ -163,12 +166,12 @@ function formatLength(cm) {
 
 function updateInfo(inst) {
     const info = inst.label.querySelector(".info");
-    info.textContent = inst.lineCount + " lines · " + formatLength(inst.totalLengthCm);
+    info.textContent = inst.lineCount + " L · " + formatLength(inst.totalLengthCm);
     updateTotalLines();
 }
 
 function updateTotalLines() {
-    totalLinesEl.textContent = globalLineCount + " lines · " + formatLength(globalLengthCm);
+    totalLinesEl.textContent = globalLineCount + " L · " + formatLength(globalLengthCm);
 }
 
 function disconnectInstance(name) {
@@ -195,7 +198,7 @@ function sendCommand(type, name) {
 function updateGlobalToggle() {
     // Global is "running" if any instance is running
     globalRunning = [...instances.values()].some(i => i.running);
-    btnToggle.textContent = globalRunning ? "Pause All" : "Start All";
+    btnToggle.textContent = globalRunning ? "\u23F8" : "\u25B6";
 }
 
 // --- Export ---
@@ -345,7 +348,7 @@ btnToggle.addEventListener("click", () => {
         }
         globalRunning = true;
     }
-    btnToggle.textContent = globalRunning ? "Pause All" : "Start All";
+    btnToggle.textContent = globalRunning ? "\u23F8" : "\u25B6";
 });
 
 btnReset.addEventListener("click", () => {

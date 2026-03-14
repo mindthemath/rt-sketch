@@ -55,6 +55,9 @@ pub struct UpdateMessage {
     pub last_line_len: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_length: Option<f64>,
+    /// Number of accepted stamps (only set in stamp mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stamp_count: Option<u64>,
     /// Bounding box of the last accepted line(s) in canvas cm: [min_x, min_y, max_x, max_y]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_bbox: Option<[f64; 4]>,
@@ -157,6 +160,7 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
             running: Some(running),
             last_line_len: None,
             total_length: Some(total_length),
+            stamp_count: None,
             last_bbox: None,
             canvas_width_cm: Some(config.canvas_width_cm),
             canvas_height_cm: Some(config.canvas_height_cm),

@@ -65,6 +65,8 @@
     const previewPlaceholder = document.getElementById("preview-placeholder");
 
     const statIteration = document.getElementById("stat-iteration");
+    const statStampsWrap = document.getElementById("stat-stamps-wrap");
+    const statStamps = document.getElementById("stat-stamps");
     const statLines = document.getElementById("stat-lines");
     const statScore = document.getElementById("stat-score");
     const statFps = document.getElementById("stat-fps");
@@ -215,6 +217,10 @@
         }
         if (msg.iteration !== undefined && msg.iteration !== null) {
             statIteration.textContent = msg.iteration.toLocaleString();
+        }
+        if (msg.stamp_count !== undefined && msg.stamp_count !== null) {
+            statStampsWrap.style.display = "";
+            statStamps.textContent = msg.stamp_count.toLocaleString();
         }
         if (msg.line_count !== undefined && msg.line_count !== null) {
             statLines.textContent = msg.line_count.toLocaleString();

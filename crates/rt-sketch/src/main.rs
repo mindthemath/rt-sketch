@@ -657,6 +657,7 @@ fn engine_loop(
             running: Some(true),
             last_line_len: result.last_metric,
             total_length: Some(total_length),
+            stamp_count: if stamp_library_path.is_some() { Some(engine.stamp_count) } else { None },
             last_bbox,
             canvas_width_cm: None,
             canvas_height_cm: None,

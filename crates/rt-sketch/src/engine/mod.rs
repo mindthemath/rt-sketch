@@ -43,6 +43,8 @@ pub struct ProposalEngine {
     stamp_library: Option<StampLibrary>,
     /// How to handle stamp lines that extend beyond canvas bounds.
     stamp_crop: StampCrop,
+    /// Number of accepted stamps (stamp mode only).
+    pub stamp_count: u64,
 }
 
 impl ProposalEngine {
@@ -74,6 +76,7 @@ impl ProposalEngine {
             preview_height: prev_h,
             stamp_library: None,
             stamp_crop: StampCrop::default(),
+            stamp_count: 0,
         }
     }
 
@@ -101,6 +104,7 @@ impl ProposalEngine {
         self.canvas.lines.clear();
         self.cached_pixmap.fill(tiny_skia::Color::WHITE);
         self.preview_pixmap.fill(tiny_skia::Color::WHITE);
+        self.stamp_count = 0;
     }
 
     /// Get the cached pixmap (current canvas at processing resolution).
@@ -248,6 +252,7 @@ impl ProposalEngine {
                 let prev_sy = self.preview_height as f64 / self.canvas.height_cm;
                 Canvas::rasterize_line_onto(&mut self.preview_pixmap, line, prev_sx, prev_sy);
             }
+            self.stamp_count += 1;
             StepResult {
                 winning_lines,
                 score: best_score,
