@@ -119,6 +119,18 @@ pub struct Args {
     /// Number of threads for parallel proposal scoring (default: all cores)
     #[arg(long)]
     pub threads: Option<usize>,
+
+    /// Stop after this many iterations (0 = no limit)
+    #[arg(long, default_value_t = 0)]
+    pub max_iter: u64,
+
+    /// Stop after this many stamps (0 = no limit)
+    #[arg(long, default_value_t = 0)]
+    pub max_stamps: u64,
+
+    /// Stop after this many lines (0 = no limit)
+    #[arg(long, default_value_t = 0)]
+    pub max_lines: u64,
 }
 
 /// Runtime configuration derived from CLI args. Can be updated from the web UI.

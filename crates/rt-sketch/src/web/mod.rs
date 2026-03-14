@@ -66,6 +66,9 @@ pub struct UpdateMessage {
     pub canvas_width_cm: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canvas_height_cm: Option<f64>,
+    /// Reason the engine was auto-paused (e.g. "max_iter", "max_stamps", "max_lines")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paused_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -164,6 +167,7 @@ async fn handle_ws(mut socket: WebSocket, state: Arc<AppState>) {
             last_bbox: None,
             canvas_width_cm: Some(config.canvas_width_cm),
             canvas_height_cm: Some(config.canvas_height_cm),
+            paused_reason: None,
         };
 
         serde_json::to_string(&init).ok()

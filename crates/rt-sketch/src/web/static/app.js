@@ -133,10 +133,18 @@
 
     let isRunning = false;
     let hasStarted = false;
+    let pausedReason = null; // set when auto-paused by a limit
     const btnToggle = document.getElementById("btn-toggle");
+    const btnContinue = document.getElementById("btn-continue");
 
     function updateToggleButton() {
-        btnToggle.textContent = isRunning ? "Pause" : (hasStarted ? "Resume" : "Start");
+        if (pausedReason) {
+            btnToggle.textContent = "Resume";
+            btnContinue.style.display = "";
+        } else {
+            btnToggle.textContent = isRunning ? "Pause" : (hasStarted ? "Resume" : "Start");
+            btnContinue.style.display = "none";
+        }
     }
 
     // --- WebSocket ---
@@ -170,9 +178,15 @@
         if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
         if (msg.canvas_height_cm) canvasHeightCm = msg.canvas_height_cm;
 
+        if (msg.paused_reason) {
+            pausedReason = msg.paused_reason;
+        }
         if (msg.running !== undefined && msg.running !== null) {
             isRunning = msg.running;
-            if (isRunning) hasStarted = true;
+            if (isRunning) {
+                hasStarted = true;
+                pausedReason = null;
+            }
             updateToggleButton();
         }
 
@@ -184,6 +198,7 @@
             statLastLen.textContent = "-";
             statLastBar.style.width = "0%";
             hasStarted = false;
+            pausedReason = null;
             updateToggleButton();
         }
 
@@ -264,6 +279,9 @@
             e.preventDefault();
             togglePlayPause();
         }
+    });
+    btnContinue.addEventListener("click", () => {
+        send("continue");
     });
     document.getElementById("btn-reset").addEventListener("click", () => send("reset"));
     document.getElementById("btn-export").addEventListener("click", () => {

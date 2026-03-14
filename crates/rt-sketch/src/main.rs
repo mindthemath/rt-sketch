@@ -177,6 +177,9 @@ async fn main() {
     let stamp_library_path = args.stamp_library.clone();
     let stamp_crop_str = args.stamp_crop.clone();
     let stamp_rotate = !args.no_stamp_rotate;
+    let max_iter = args.max_iter;
+    let max_stamps = args.max_stamps;
+    let max_lines = args.max_lines;
     tokio::task::spawn_blocking(move || {
         engine_loop(
             engine_state,
@@ -192,6 +195,9 @@ async fn main() {
             stamp_library_path,
             stamp_crop_str,
             stamp_rotate,
+            max_iter,
+            max_stamps,
+            max_lines,
         );
     })
     .await
@@ -235,7 +241,14 @@ fn engine_loop(
     stamp_library_path: Option<String>,
     stamp_crop_str: String,
     stamp_rotate: bool,
+    initial_max_iter: u64,
+    initial_max_stamps: u64,
+    initial_max_lines: u64,
 ) {
+    // Active limits — cleared by "continue", restored on "reset"
+    let mut max_iter = initial_max_iter;
+    let mut max_stamps = initial_max_stamps;
+    let mut max_lines = initial_max_lines;
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
 
@@ -389,6 +402,10 @@ fn engine_loop(
                     }
                     let was_running = *state.running.lock().unwrap();
                     engine.reset();
+                    // Restore original limits
+                    max_iter = initial_max_iter;
+                    max_stamps = initial_max_stamps;
+                    max_lines = initial_max_lines;
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
                     *state.canvas.lock().unwrap() = engine.canvas.clone();
@@ -409,6 +426,22 @@ fn engine_loop(
         let mut lut_changed = false;
         while let Ok(cmd) = control_rx.try_recv() {
             match cmd.command.as_str() {
+                "continue" => {
+                    // Clear limits and resume
+                    max_iter = 0;
+                    max_stamps = 0;
+                    max_lines = 0;
+                    *state.running.lock().unwrap() = true;
+                    if let Some(ref mut tcp) = tcp_output {
+                        tcp.send_state(true);
+                    }
+                    let _ = state.update_tx.send(UpdateMessage {
+                        msg_type: "state".to_string(),
+                        running: Some(true),
+                        ..Default::default()
+                    });
+                    tracing::info!("engine continued (limits cleared)");
+                }
                 "start" | "resume" => {
                     // Spawn stream FFmpeg on first start
                     if stream.is_none() {
@@ -468,6 +501,10 @@ fn engine_loop(
                         tcp.send_reset();
                     }
                     engine.reset();
+                    // Restore original limits
+                    max_iter = initial_max_iter;
+                    max_stamps = initial_max_stamps;
+                    max_lines = initial_max_lines;
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
                     *state.running.lock().unwrap() = false;
@@ -635,6 +672,7 @@ fn engine_loop(
             None
         };
 
+        let line_count = engine.canvas.lines.len();
         let total_length: f64 = engine.canvas.lines.iter().map(|l| l.length()).sum();
         let last_bbox = if result.winning_lines.is_empty() {
             None
@@ -660,7 +698,7 @@ fn engine_loop(
             score: Some(result.score),
             fps: None,
             k: Some(current_k),
-            line_count: Some(engine.canvas.lines.len()),
+            line_count: Some(line_count),
             running: Some(true),
             last_line_len: result.last_metric,
             total_length: Some(total_length),
@@ -672,7 +710,38 @@ fn engine_loop(
             last_bbox,
             canvas_width_cm: None,
             canvas_height_cm: None,
+            paused_reason: None,
         });
+
+        // Check limits — auto-pause if any limit reached
+        let paused_reason = if max_iter > 0 && iteration >= max_iter {
+            Some("max_iter".to_string())
+        } else if max_lines > 0 && line_count as u64 >= max_lines {
+            Some("max_lines".to_string())
+        } else if max_stamps > 0 && engine.stamp_count >= max_stamps {
+            Some("max_stamps".to_string())
+        } else {
+            None
+        };
+        if let Some(reason) = paused_reason {
+            tracing::info!("limit reached: {}, pausing", reason);
+            *state.running.lock().unwrap() = false;
+            if let Some(ref mut tcp) = tcp_output {
+                tcp.send_state(false);
+            }
+            let canvas_raster = Canvas::pixmap_to_gray(engine.cached_pixmap());
+            let canvas_b64 = web::gray_to_base64_png(&canvas_raster, pw, ph);
+            let preview_png = engine.preview_png();
+            let preview_b64 = base64::engine::general_purpose::STANDARD.encode(&preview_png);
+            let _ = state.update_tx.send(UpdateMessage {
+                msg_type: "state".to_string(),
+                canvas_png: Some(canvas_b64),
+                preview_png: Some(preview_b64),
+                running: Some(false),
+                paused_reason: Some(reason),
+                ..Default::default()
+            });
+        }
 
         // Frame pacing
         let elapsed = step_start.elapsed();
