@@ -47,6 +47,18 @@
     const targetImg = document.getElementById("target-img");
     const canvasImg = document.getElementById("canvas-img");
     const previewImg = document.getElementById("preview-img");
+    const bboxOverlay = document.getElementById("bbox-overlay");
+    const chkBbox = document.getElementById("chk-bbox");
+
+    // Canvas dimensions in cm (set on init)
+    let canvasWidthCm = 0;
+    let canvasHeightCm = 0;
+    let bboxEnabled = chkBbox.checked;
+
+    chkBbox.addEventListener("change", () => {
+        bboxEnabled = chkBbox.checked;
+        if (!bboxEnabled) bboxOverlay.style.display = "none";
+    });
 
     const targetPlaceholder = document.getElementById("target-placeholder");
     const canvasPlaceholder = document.getElementById("canvas-placeholder");
@@ -153,6 +165,9 @@
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
 
+        if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
+        if (msg.canvas_height_cm) canvasHeightCm = msg.canvas_height_cm;
+
         if (msg.running !== undefined && msg.running !== null) {
             isRunning = msg.running;
             if (isRunning) hasStarted = true;
@@ -162,6 +177,7 @@
         if (msg.type === "reset") {
             hideImg(canvasImg, canvasPlaceholder);
             hideImg(previewImg, previewPlaceholder);
+            bboxOverlay.style.display = "none";
             statFps.textContent = "-";
             statLastLen.textContent = "-";
             statLastBar.style.width = "0%";
@@ -173,6 +189,21 @@
             canvasImg.src = "data:image/png;base64," + msg.canvas_png;
             showImg(canvasImg, canvasPlaceholder);
             updateFps();
+        }
+        // Bbox overlay
+        if (bboxEnabled && msg.last_bbox && canvasWidthCm > 0 && canvasHeightCm > 0) {
+            const [minX, minY, maxX, maxY] = msg.last_bbox;
+            const imgW = canvasImg.clientWidth;
+            const imgH = canvasImg.clientHeight;
+            const sx = imgW / canvasWidthCm;
+            const sy = imgH / canvasHeightCm;
+            bboxOverlay.style.left = (minX * sx) + "px";
+            bboxOverlay.style.top = (minY * sy) + "px";
+            bboxOverlay.style.width = ((maxX - minX) * sx) + "px";
+            bboxOverlay.style.height = ((maxY - minY) * sy) + "px";
+            bboxOverlay.style.display = "block";
+        } else if (!msg.last_bbox) {
+            bboxOverlay.style.display = "none";
         }
         if (msg.target_png) {
             targetImg.src = "data:image/png;base64," + msg.target_png;

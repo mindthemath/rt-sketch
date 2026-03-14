@@ -299,17 +299,8 @@ fn engine_loop(
     let target_b64 = web::gray_to_base64_png(&first_frame, pw, ph);
     let _ = state.update_tx.send(UpdateMessage {
         msg_type: "target".to_string(),
-        canvas_png: None,
         target_png: Some(target_b64),
-        preview_png: None,
-        iteration: None,
-        score: None,
-        fps: None,
-        k: None,
-        line_count: None,
-        running: None,
-        last_line_len: None,
-        total_length: None,
+        ..Default::default()
     });
 
     let mut engine = ProposalEngine::new(&config);
@@ -438,17 +429,8 @@ fn engine_loop(
                     }
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
-                        canvas_png: None,
-                        target_png: None,
-                        preview_png: None,
-                        iteration: None,
-                        score: None,
-                        fps: None,
-                        k: None,
-                        line_count: None,
                         running: Some(true),
-                        last_line_len: None,
-                        total_length: None,
+                        ..Default::default()
                     });
                     tracing::info!("engine started/resumed");
                 }
@@ -466,16 +448,9 @@ fn engine_loop(
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
                         canvas_png: Some(canvas_b64),
-                        target_png: None,
                         preview_png: Some(preview_b64),
-                        iteration: None,
-                        score: None,
-                        fps: None,
-                        k: None,
-                        line_count: None,
                         running: Some(false),
-                        last_line_len: None,
-                        total_length: None,
+                        ..Default::default()
                     });
                     tracing::info!("engine paused");
                 }
@@ -495,17 +470,12 @@ fn engine_loop(
                     *state.canvas.lock().unwrap() = engine.canvas.clone();
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "reset".to_string(),
-                        canvas_png: None,
-                        target_png: None,
-                        preview_png: None,
                         iteration: Some(0),
                         score: Some(1.0),
-                        fps: None,
-                        k: None,
                         line_count: Some(0),
                         running: Some(false),
-                        last_line_len: None,
                         total_length: Some(0.0),
+                        ..Default::default()
                     });
                     tracing::info!("engine reset");
                 }
@@ -604,17 +574,8 @@ fn engine_loop(
                 let target_b64 = web::gray_to_base64_png(&target, pw, ph);
                 let _ = state.update_tx.send(UpdateMessage {
                     msg_type: "target".to_string(),
-                    canvas_png: None,
                     target_png: Some(target_b64),
-                    preview_png: None,
-                    iteration: None,
-                    score: None,
-                    fps: None,
-                    k: None,
-                    line_count: None,
-                    running: None,
-                    last_line_len: None,
-                    total_length: None,
+                    ..Default::default()
                 });
             }
             std::thread::sleep(Duration::from_millis(50));
@@ -668,6 +629,21 @@ fn engine_loop(
         };
 
         let total_length: f64 = engine.canvas.lines.iter().map(|l| l.length()).sum();
+        let last_bbox = if result.winning_lines.is_empty() {
+            None
+        } else {
+            let mut min_x = f64::INFINITY;
+            let mut min_y = f64::INFINITY;
+            let mut max_x = f64::NEG_INFINITY;
+            let mut max_y = f64::NEG_INFINITY;
+            for line in &result.winning_lines {
+                min_x = min_x.min(line.x1).min(line.x2);
+                min_y = min_y.min(line.y1).min(line.y2);
+                max_x = max_x.max(line.x1).max(line.x2);
+                max_y = max_y.max(line.y1).max(line.y2);
+            }
+            Some([min_x, min_y, max_x, max_y])
+        };
         let _ = state.update_tx.send(UpdateMessage {
             msg_type: "update".to_string(),
             canvas_png: Some(canvas_b64),
@@ -679,8 +655,11 @@ fn engine_loop(
             k: Some(current_k),
             line_count: Some(engine.canvas.lines.len()),
             running: Some(true),
-            last_line_len: result.winning_lines.last().map(|l| l.length()),
+            last_line_len: result.last_metric,
             total_length: Some(total_length),
+            last_bbox,
+            canvas_width_cm: None,
+            canvas_height_cm: None,
         });
 
         // Frame pacing

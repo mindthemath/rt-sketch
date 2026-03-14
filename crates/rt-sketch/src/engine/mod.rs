@@ -18,6 +18,8 @@ pub struct StepResult {
     pub winning_lines: Vec<LineSegment>,
     /// MSE score after this step.
     pub score: f64,
+    /// In line mode: length of the winning line. In stamp mode: runtime scale factor.
+    pub last_metric: Option<f64>,
 }
 
 /// The proposal engine: generates K proposals, scores them, picks the best.
@@ -177,11 +179,13 @@ impl ProposalEngine {
             StepResult {
                 winning_lines: vec![winning_line],
                 score: best_score,
+                last_metric: Some(winning_line.length()),
             }
         } else {
             StepResult {
                 winning_lines: vec![],
                 score: current_score,
+                last_metric: None,
             }
         }
     }
@@ -200,9 +204,11 @@ impl ProposalEngine {
         let library = self.stamp_library.as_ref().unwrap();
 
         let crop = self.stamp_crop;
+        let min_scale = self.min_line_len;
+        let max_scale = self.max_line_len;
 
-        // Generate K stamp candidates (each is a Vec<LineSegment>)
-        let candidates: Vec<Vec<LineSegment>> = (0..k)
+        // Generate K stamp candidates (each is a (Vec<LineSegment>, runtime_scale))
+        let candidates: Vec<(Vec<LineSegment>, f64)> = (0..k)
             .map(|_| {
                 library.sample(
                     self.canvas.width_cm,
@@ -210,6 +216,8 @@ impl ProposalEngine {
                     &self.sampler.x,
                     &self.sampler.y,
                     crop,
+                    min_scale,
+                    max_scale,
                 )
             })
             .collect();
@@ -217,7 +225,7 @@ impl ProposalEngine {
         // Score each candidate in parallel
         let scores: Vec<f64> = candidates
             .par_iter()
-            .map(|lines| {
+            .map(|(lines, _)| {
                 let mut test_pixmap = self.cached_pixmap.clone();
                 Canvas::rasterize_lines_onto(&mut test_pixmap, lines, scale_x, scale_y);
                 let raster = Canvas::pixmap_to_gray(&test_pixmap);
@@ -232,7 +240,7 @@ impl ProposalEngine {
             .unwrap();
 
         if best_score < current_score {
-            let winning_lines = candidates.into_iter().nth(best_idx).unwrap();
+            let (winning_lines, runtime_scale) = candidates.into_iter().nth(best_idx).unwrap();
             for line in &winning_lines {
                 self.canvas.add_line(*line);
                 Canvas::rasterize_line_onto(&mut self.cached_pixmap, line, scale_x, scale_y);
@@ -243,11 +251,13 @@ impl ProposalEngine {
             StepResult {
                 winning_lines,
                 score: best_score,
+                last_metric: Some(runtime_scale),
             }
         } else {
             StepResult {
                 winning_lines: vec![],
                 score: current_score,
+                last_metric: None,
             }
         }
     }

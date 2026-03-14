@@ -173,8 +173,10 @@ impl StampLibrary {
         Ok(StampLibrary { stamps })
     }
 
-    /// Sample a random stamp, translated to a random position on the canvas.
-    /// Returns the translated line segments, cropped according to `crop` mode.
+    /// Sample a random stamp, scaled randomly within [min_scale, max_scale],
+    /// translated to a random position on the canvas.
+    /// The runtime scale multiplies the stamp's base scale (from the CSV).
+    /// Returns (translated line segments, runtime scale factor), cropped according to `crop` mode.
     pub fn sample(
         &self,
         canvas_w: f64,
@@ -182,12 +184,21 @@ impl StampLibrary {
         x_dist: &Distribution,
         y_dist: &Distribution,
         crop: StampCrop,
-    ) -> Vec<LineSegment> {
+        min_scale: f64,
+        max_scale: f64,
+    ) -> (Vec<LineSegment>, f64) {
         // Pick a uniformly random stamp
         let idx = fastrand::usize(0..self.stamps.len());
         let stamp = &self.stamps[idx];
 
-        // Stamp center
+        // Random runtime scale within [min_scale, max_scale]
+        let runtime_scale = if (max_scale - min_scale).abs() < 1e-9 {
+            min_scale
+        } else {
+            min_scale + fastrand::f64() * (max_scale - min_scale)
+        };
+
+        // Stamp center (in base-scaled coordinates)
         let cx = (stamp.bbox.0 + stamp.bbox.2) / 2.0;
         let cy = (stamp.bbox.1 + stamp.bbox.3) / 2.0;
 
@@ -195,17 +206,14 @@ impl StampLibrary {
         let tx = x_dist.sample() * canvas_w;
         let ty = y_dist.sample() * canvas_h;
 
-        // Translation offset
-        let dx = tx - cx;
-        let dy = ty - cy;
-
         let mut result = Vec::with_capacity(stamp.lines.len());
 
         for line in &stamp.lines {
-            let x1 = line.x1 + dx;
-            let y1 = line.y1 + dy;
-            let x2 = line.x2 + dx;
-            let y2 = line.y2 + dy;
+            // Scale around stamp center, then translate to target position
+            let x1 = (line.x1 - cx) * runtime_scale + tx;
+            let y1 = (line.y1 - cy) * runtime_scale + ty;
+            let x2 = (line.x2 - cx) * runtime_scale + tx;
+            let y2 = (line.y2 - cy) * runtime_scale + ty;
 
             match crop {
                 StampCrop::None => {
@@ -252,7 +260,7 @@ impl StampLibrary {
             }
         }
 
-        result
+        (result, runtime_scale)
     }
 }
 

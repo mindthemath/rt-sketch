@@ -6,23 +6,41 @@
 
 set -euo pipefail
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Generate a stamp library of SVG curve files for rt-sketch stamp mode."
-  echo ""
-  echo "Usage: ./gen_stamps.sh [output_dir] [seed]"
-  echo ""
-  echo "  output_dir  Directory for SVGs and stamps.csv (default: imgs)"
-  echo "  seed        RNG seed for reproducible scale values (default: 42)"
-  echo ""
-  echo "The output directory is wiped and recreated on each run."
-  echo "Curves are generated using rt-drawing (draw_curves binary)."
-  echo "Scale values in the CSV are randomized between 5 and 15."
-  exit 0
-fi
+DIR="imgs"
+SEED=21
+MIN_SCALE=1
+MAX_SCALE=1
 
-DIR="${1:-imgs}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      echo "Generate a stamp library of SVG curve files for rt-sketch stamp mode."
+      echo ""
+      echo "Usage: ./gen_stamps.sh [output_dir] [seed] [--min-scale N] [--max-scale N]"
+      echo ""
+      echo "  output_dir   Directory for SVGs and stamps.csv (default: imgs)"
+      echo "  seed         RNG seed for reproducible scale values (default: 42)"
+      echo "  --min-scale  Minimum scale value in CSV (default: 1)"
+      echo "  --max-scale  Maximum scale value in CSV (default: 1)"
+      echo ""
+      echo "The output directory is wiped and recreated on each run."
+      echo "Curves are generated using rt-drawing (draw_curves binary)."
+      exit 0
+      ;;
+    --min-scale) MIN_SCALE="$2"; shift 2 ;;
+    --max-scale) MAX_SCALE="$2"; shift 2 ;;
+    *)
+      if [[ "$DIR" == "imgs" && ! "$1" =~ ^- ]]; then
+        DIR="$1"
+      elif [[ "$SEED" == "42" && ! "$1" =~ ^- ]]; then
+        SEED="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
 DIR="${DIR%/}"
-SEED="${2:-42}"
 rm -rf "$DIR"
 mkdir -p "$DIR"
 
@@ -35,7 +53,13 @@ echo "path,scale" > "$CSV"
 COUNT=0
 emit() {
   local name="$1"; shift
-  local scale=$(( (RANDOM % 11) + 5 ))
+  local range=$((MAX_SCALE - MIN_SCALE + 1))
+  local scale
+  if (( range <= 1 )); then
+    scale=$MIN_SCALE
+  else
+    scale=$(( (RANDOM % range) + MIN_SCALE ))
+  fi
   echo "  $name (scale=${scale})"
   $BINARY "$@" -o "$DIR/$name.svg"
   echo "$DIR/$name.svg,${scale}.0" >> "$CSV"
@@ -48,30 +72,34 @@ DSEED=$SEED
 
 echo "=== dense chained curves (step=n) ==="
 
-for basis in rbf fourier relu legendre; do
-  for n in 12 24 36; do
+for basis in rbf relu legendre; do
+  for n in 24 36; do
     for c in 3 4 5 6 7 8; do
-      emit "dense-${basis}-c${c}-n${n}-s${n}" \
-        --basis "$basis" --seed $DSEED --num-curves 1 --chain $c $c \
+      for v in a b c; do
+        emit "dense-${basis}-c${c}-n${n}-s${n}-${v}" \
+          --basis "$basis" --seed $DSEED --num-curves 1 --chain $c $c \
+          --n-points $n --step $n
+        DSEED=$((DSEED + 1))
+      done
+    done
+
+    # Random range variants (3 seeds each)
+    for v in a b c; do
+      emit "dense-${basis}-c3to6-n${n}-s${n}-${v}" \
+        --basis "$basis" --seed $DSEED --num-curves 1 --chain 3 6 \
+        --n-points $n --step $n
+      DSEED=$((DSEED + 1))
+
+      emit "dense-${basis}-c3to8-n${n}-s${n}-${v}" \
+        --basis "$basis" --seed $DSEED --num-curves 1 --chain 3 8 \
+        --n-points $n --step $n
+      DSEED=$((DSEED + 1))
+
+      emit "dense-${basis}-c5to8-n${n}-s${n}-${v}" \
+        --basis "$basis" --seed $DSEED --num-curves 1 --chain 5 8 \
         --n-points $n --step $n
       DSEED=$((DSEED + 1))
     done
-
-    # Random range variants
-    emit "dense-${basis}-c3to6-n${n}-s${n}" \
-      --basis "$basis" --seed $DSEED --num-curves 1 --chain 3 6 \
-      --n-points $n --step $n
-    DSEED=$((DSEED + 1))
-
-    emit "dense-${basis}-c3to8-n${n}-s${n}" \
-      --basis "$basis" --seed $DSEED --num-curves 1 --chain 3 8 \
-      --n-points $n --step $n
-    DSEED=$((DSEED + 1))
-
-    emit "dense-${basis}-c5to8-n${n}-s${n}" \
-      --basis "$basis" --seed $DSEED --num-curves 1 --chain 5 8 \
-      --n-points $n --step $n
-    DSEED=$((DSEED + 1))
   done
 done
 
@@ -79,8 +107,8 @@ done
 
 echo "=== chained curves (step<n) ==="
 
-for basis in rbf fourier relu legendre; do
-  for n in 12 24 36; do
+for basis in rbf relu legendre; do
+  for n in 24 36; do
     half=$((n / 2))
     emit "chain-${basis}-c3to6-n${n}-s${half}" \
       --basis "$basis" --seed $DSEED --num-curves 1 --chain 3 6 \
@@ -98,8 +126,8 @@ done
 
 echo "=== chained + transformed ==="
 
-for basis in fourier rbf relu; do
-  for n in 12 24 36; do
+for basis in rbf relu; do
+  for n in 24 36; do
     emit "chain-${basis}-scaled-c3to8-n${n}-s${n}" \
       --basis "$basis" --seed $DSEED --num-curves 1 --chain 3 8 \
       --n-points $n --step $n \
@@ -119,7 +147,7 @@ done
 echo "=== piecewise curves ==="
 
 for basis in fourier rbf legendre relu; do
-  for n in 12 24 36; do
+  for n in 24 36; do
     emit "pw-${basis}-3x45-n${n}-s${n}" \
       --basis "$basis" --seed $DSEED --num-curves 1 \
       --piecewise 3 --rot 45 --noise 0.1 \
@@ -130,25 +158,6 @@ for basis in fourier rbf legendre relu; do
       --basis "$basis" --seed $DSEED --num-curves 1 \
       --piecewise 4 --rot 60 --noise 0.15 \
       --n-points $n --step $n
-    DSEED=$((DSEED + 1))
-  done
-done
-
-# ── Single curves ────────────────────────────────────────────────────
-
-echo "=== single curves ==="
-
-for basis in rbf fourier relu legendre; do
-  for n in 12 24 36; do
-    emit "single-${basis}-n${n}-s${n}" \
-      --basis "$basis" --seed $DSEED --num-curves 1 \
-      --n-points $n --step $n
-    DSEED=$((DSEED + 1))
-
-    half=$((n / 2))
-    emit "single-${basis}-n${n}-s${half}" \
-      --basis "$basis" --seed $DSEED --num-curves 1 \
-      --n-points $n --step $half
     DSEED=$((DSEED + 1))
   done
 done

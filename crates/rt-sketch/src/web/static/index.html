@@ -37,9 +37,15 @@
         </div>
         <div class="panel-row">
             <div class="panel">
-                <h2>canvas (processing res)</h2>
-                <div class="placeholder" id="canvas-placeholder">press start to begin</div>
-                <img id="canvas-img" alt="canvas at processing resolution" style="display:none">
+                <div class="panel-header">
+                    <h2>canvas (processing res)</h2>
+                    <label class="bbox-toggle"><input type="checkbox" id="chk-bbox" checked> bbox</label>
+                </div>
+                <div class="canvas-img-wrapper">
+                    <div class="placeholder" id="canvas-placeholder">press start to begin</div>
+                    <img id="canvas-img" alt="canvas at processing resolution" style="display:none">
+                    <div id="bbox-overlay"></div>
+                </div>
             </div>
             <div class="panel preview-panel">
                 <h2>canvas</h2>
