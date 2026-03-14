@@ -165,6 +165,7 @@ function drawLine(inst, x1, y1, x2, y2, width) {
 }
 
 function formatLength(cm) {
+    cm = Math.max(0, cm);
     if (cm >= 100) return (cm / 100).toFixed(1) + " m";
     return cm.toFixed(1) + " cm";
 }
