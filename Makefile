@@ -110,6 +110,9 @@ streamB:
 streamC:
 	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-C" --fps 24 --wait-for-viewer --auto-start --threads 2
 
+stamp-stream-image:
+	cargo run --release -p rt-sketch -- --source image:$(IMAGE) --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
+
 stamp-stream:
 	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
 
