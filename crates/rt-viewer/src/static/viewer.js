@@ -4,6 +4,7 @@ const controlsEl = document.getElementById("controls");
 const btnToggle = document.getElementById("btn-toggle");
 const btnReset = document.getElementById("btn-reset");
 const btnExport = document.getElementById("btn-export");
+const btnTidy = document.getElementById("btn-tidy");
 const totalLinesEl = document.getElementById("total-lines");
 
 // Map of instance name -> { container, canvas, ctx, lineCount, widthCm, heightCm, strokeCm, running }
@@ -179,6 +180,21 @@ function disconnectInstance(name) {
     const inst = instances.get(name);
     if (inst) {
         inst.container.classList.add("disconnected");
+    }
+}
+
+function tidyDisconnected() {
+    for (const [name, inst] of instances) {
+        if (inst.container.classList.contains("disconnected")) {
+            globalLineCount -= inst.lineCount;
+            globalLengthCm -= inst.totalLengthCm;
+            inst.container.remove();
+            instances.delete(name);
+        }
+    }
+    updateTotalLines();
+    if (instances.size === 0) {
+        grid.innerHTML = '<div class="empty-state">waiting for rt-sketch instances to connect...</div>';
     }
 }
 
@@ -358,6 +374,10 @@ btnReset.addEventListener("click", () => {
 
 btnExport.addEventListener("click", () => {
     exportAll();
+});
+
+btnTidy.addEventListener("click", () => {
+    tidyDisconnected();
 });
 
 // --- WebSocket ---
