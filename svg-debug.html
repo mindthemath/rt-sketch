@@ -298,7 +298,8 @@ button:active { background: #555; }
             <span class="stat"><label>crop</label><strong id="stat-crop">-</strong></span>
             <span class="stat"><label>output</label><strong id="stat-output">-</strong></span>
         </div>
-        <button id="btn-export" style="margin-left:auto;white-space:nowrap" disabled>Export</button>
+        <label style="margin-left:auto;display:flex;align-items:center;gap:0.3rem;color:#999;white-space:nowrap;font-size:0.8rem;cursor:pointer"><input type="checkbox" id="chk-trim" style="accent-color:#6f6">trim</label>
+        <button id="btn-export" style="white-space:nowrap" disabled>Export</button>
     </header>
     <main>
         <div class="panel">
@@ -663,9 +664,36 @@ function updateSizeFromCrop() {
     inputHeight.value = (vb.h * scaleH).toFixed(2);
 }
 
+// Cohen-Sutherland line clipping
+function clipLineToRect(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
+    const INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
+    function code(x, y) {
+        let c = INSIDE;
+        if (x < xmin) c |= LEFT;
+        else if (x > xmax) c |= RIGHT;
+        if (y < ymin) c |= TOP;
+        else if (y > ymax) c |= BOTTOM;
+        return c;
+    }
+    let c1 = code(x1, y1), c2 = code(x2, y2);
+    while (true) {
+        if (!(c1 | c2)) return { x1, y1, x2, y2 }; // both inside
+        if (c1 & c2) return null; // both outside same side
+        const cout = c1 || c2;
+        let x, y;
+        if (cout & BOTTOM) { x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1); y = ymax; }
+        else if (cout & TOP) { x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1); y = ymin; }
+        else if (cout & RIGHT) { y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1); x = xmax; }
+        else { y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1); x = xmin; }
+        if (cout === c1) { x1 = x; y1 = y; c1 = code(x1, y1); }
+        else { x2 = x; y2 = y; c2 = code(x2, y2); }
+    }
+}
+
 function buildExportSvg() {
     if (!svgWrapper) return null;
     const clone = svgWrapper.cloneNode(true);
+    const trim = document.getElementById('chk-trim').checked;
 
     // strip hidden lines
     clone.querySelectorAll('line').forEach(l => {
@@ -675,6 +703,22 @@ function buildExportSvg() {
     // apply crop viewBox
     const vb = getCropVB();
     clone.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
+    // trim lines to crop boundary
+    if (trim) {
+        clone.querySelectorAll('line').forEach(l => {
+            const clipped = clipLineToRect(
+                parseFloat(l.getAttribute('x1')), parseFloat(l.getAttribute('y1')),
+                parseFloat(l.getAttribute('x2')), parseFloat(l.getAttribute('y2')),
+                vb.x, vb.y, vb.x + vb.w, vb.y + vb.h
+            );
+            if (!clipped) { l.remove(); return; }
+            l.setAttribute('x1', clipped.x1);
+            l.setAttribute('y1', clipped.y1);
+            l.setAttribute('x2', clipped.x2);
+            l.setAttribute('y2', clipped.y2);
+        });
+    }
 
     // apply output size
     const w = parseFloat(inputWidth.value);
