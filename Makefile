@@ -1,4 +1,4 @@
-.PHONY: build run run-image run-image-remote dev check test clean clean-examples fmt help snap draw-basic draw-piecewise examples
+.PHONY: build run run-image run-image-remote dev check test clean clean-examples fmt help snap draw-basic draw-piecewise examples stamps run-stamps run-stamps-image dev-stamps
 
 # Default test image (override with IMAGE=path)
 IMAGE ?= test.jpg
@@ -23,6 +23,25 @@ record-image: build
 ## run-image: Run with a static test image
 run-image: build
 	./target/release/rt-sketch --source image:$(IMAGE) --canvas-height 15 --canvas-width 15 --fps $(FPS)
+
+STAMP_LIB ?= imgs/stamps.csv
+STAMP_CROP ?= clip
+
+## stamps: Generate stamp library SVGs into imgs/
+stamps: build
+	./gen_stamps.sh
+
+## run-stamps: Run with webcam using stamp library
+run-stamps: build
+	./target/release/rt-sketch --source webcam:$(DEVICE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 20 --canvas-width 20 --fps $(FPS)
+
+## run-stamps-image: Run with a static test image using stamp library
+run-stamps-image: build
+	./target/release/rt-sketch --source image:$(IMAGE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-height 15 --canvas-width 15 --fps $(FPS)
+
+## dev-stamps: Run stamp mode in debug with a test image
+dev-stamps:
+	cargo run -p rt-sketch -- --source image:$(IMAGE) --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP)
 
 ## run-image-remote: Run with a remote test image
 run-image-remote: build
