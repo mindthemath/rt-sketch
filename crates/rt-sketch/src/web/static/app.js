@@ -135,16 +135,9 @@
     let hasStarted = false;
     let pausedReason = null; // set when auto-paused by a limit
     const btnToggle = document.getElementById("btn-toggle");
-    const btnContinue = document.getElementById("btn-continue");
 
     function updateToggleButton() {
-        if (pausedReason) {
-            btnToggle.textContent = "Resume";
-            btnContinue.style.display = "";
-        } else {
-            btnToggle.textContent = isRunning ? "Pause" : (hasStarted ? "Resume" : "Start");
-            btnContinue.style.display = "none";
-        }
+        btnToggle.textContent = isRunning ? "Pause" : (hasStarted ? "Resume" : "Start");
     }
 
     // --- WebSocket ---
@@ -279,9 +272,6 @@
             e.preventDefault();
             togglePlayPause();
         }
-    });
-    btnContinue.addEventListener("click", () => {
-        send("continue");
     });
     document.getElementById("btn-reset").addEventListener("click", () => send("reset"));
     document.getElementById("btn-export").addEventListener("click", () => {

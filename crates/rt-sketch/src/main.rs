@@ -379,6 +379,12 @@ fn engine_loop(
             match cmd {
                 tcp_output::ViewerCommand::Play => {
                     tracing::info!("viewer: play");
+                    // Clear limits on resume (override), but not after a fresh reset
+                    if *state.iteration.lock().unwrap() > 0 {
+                        max_iter = 0;
+                        max_stamps = 0;
+                        max_lines = 0;
+                    }
                     *state.running.lock().unwrap() = true;
                     let _ = state.update_tx.send(UpdateMessage {
                         msg_type: "state".to_string(),
@@ -426,23 +432,13 @@ fn engine_loop(
         let mut lut_changed = false;
         while let Ok(cmd) = control_rx.try_recv() {
             match cmd.command.as_str() {
-                "continue" => {
-                    // Clear limits and resume
-                    max_iter = 0;
-                    max_stamps = 0;
-                    max_lines = 0;
-                    *state.running.lock().unwrap() = true;
-                    if let Some(ref mut tcp) = tcp_output {
-                        tcp.send_state(true);
-                    }
-                    let _ = state.update_tx.send(UpdateMessage {
-                        msg_type: "state".to_string(),
-                        running: Some(true),
-                        ..Default::default()
-                    });
-                    tracing::info!("engine continued (limits cleared)");
-                }
                 "start" | "resume" => {
+                    // Clear limits on resume (override), but not after a fresh reset
+                    if cmd.command == "resume" && *state.iteration.lock().unwrap() > 0 {
+                        max_iter = 0;
+                        max_stamps = 0;
+                        max_lines = 0;
+                    }
                     // Spawn stream FFmpeg on first start
                     if stream.is_none() {
                         if let Some(ref sc) = stream_config {
