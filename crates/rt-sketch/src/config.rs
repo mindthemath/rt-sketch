@@ -96,6 +96,14 @@ pub struct Args {
     #[arg(long)]
     pub stream_name: Option<String>,
 
+    /// Stamp library CSV (local path or HTTP URL). When set, proposals use stamps instead of random lines.
+    #[arg(long)]
+    pub stamp_library: Option<String>,
+
+    /// How to handle stamp lines that extend beyond canvas bounds: clip, drop, or none.
+    #[arg(long, default_value = "clip")]
+    pub stamp_crop: String,
+
     /// Start drawing immediately without waiting for the web UI start button
     #[arg(long)]
     pub auto_start: bool,

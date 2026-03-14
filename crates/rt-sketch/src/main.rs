@@ -174,6 +174,8 @@ async fn main() {
     let engine_state = state.clone();
     let source_str = args.source.clone();
     let auto_start = args.auto_start;
+    let stamp_library_path = args.stamp_library.clone();
+    let stamp_crop_str = args.stamp_crop.clone();
     tokio::task::spawn_blocking(move || {
         engine_loop(
             engine_state,
@@ -186,6 +188,8 @@ async fn main() {
             tcp_config,
             auto_start,
             wait_for_viewer,
+            stamp_library_path,
+            stamp_crop_str,
         );
     })
     .await
@@ -226,6 +230,8 @@ fn engine_loop(
     tcp_config: Option<(String, String)>,
     auto_start: bool,
     wait_for_viewer: bool,
+    stamp_library_path: Option<String>,
+    stamp_crop_str: String,
 ) {
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
@@ -307,6 +313,28 @@ fn engine_loop(
     });
 
     let mut engine = ProposalEngine::new(&config);
+
+    // Load stamp library if configured
+    if let Some(ref stamp_csv) = stamp_library_path {
+        let stamp_crop: engine::stamp::StampCrop = match stamp_crop_str.parse() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return;
+            }
+        };
+        match engine::stamp::StampLibrary::load(stamp_csv, config.stroke_width_cm) {
+            Ok(library) => {
+                tracing::info!("stamp crop mode: {}", stamp_crop);
+                engine.set_stamp_library(library, stamp_crop);
+            }
+            Err(e) => {
+                eprintln!("error: failed to load stamp library: {}", e);
+                return;
+            }
+        }
+    }
+
     let mut current_k = config.k;
     let target_frame_duration = Duration::from_secs_f64(1.0 / config.fps);
 
@@ -601,8 +629,8 @@ fn engine_loop(
         // Run one proposal step
         let result = engine.step(&target, current_k);
 
-        // Send winning line to robot and TCP viewer
-        if let Some(ref line) = result.winning_line {
+        // Send winning line(s) to robot and TCP viewer
+        for line in &result.winning_lines {
             if let Err(e) = sink.send_line(line) {
                 tracing::warn!("failed to send to robot: {}", e);
             }
@@ -651,7 +679,7 @@ fn engine_loop(
             k: Some(current_k),
             line_count: Some(engine.canvas.lines.len()),
             running: Some(true),
-            last_line_len: result.winning_line.map(|l| l.length()),
+            last_line_len: result.winning_lines.last().map(|l| l.length()),
             total_length: Some(total_length),
         });
 

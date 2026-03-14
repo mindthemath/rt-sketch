@@ -43,3 +43,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Base64 encoding for websocket image data
 base64 = "0.22"
+
+# CSV parsing (stamp library)
+csv = "1"
+
+# Regex (SVG line parsing)
+regex = "1"

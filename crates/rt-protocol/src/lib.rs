@@ -75,7 +75,15 @@ mod tests {
 
     #[test]
     fn all_message_types_round_trip() {
-        for &msg in &[MSG_HELLO, MSG_LINE, MSG_RESET, MSG_STATE, CMD_PLAY, CMD_PAUSE, CMD_RESET_ALL] {
+        for &msg in &[
+            MSG_HELLO,
+            MSG_LINE,
+            MSG_RESET,
+            MSG_STATE,
+            CMD_PLAY,
+            CMD_PAUSE,
+            CMD_RESET_ALL,
+        ] {
             let header = build_header(msg, 100);
             let parsed = parse_header(&header).unwrap();
             assert_eq!(parsed.msg_type, msg);
@@ -124,7 +132,13 @@ mod tests {
     }
 
     /// Serialize a MSG_HELLO payload the same way tcp_output.rs does.
-    fn encode_hello(name: &str, canvas_w: f32, canvas_h: f32, stroke_w: f32, running: bool) -> Vec<u8> {
+    fn encode_hello(
+        name: &str,
+        canvas_w: f32,
+        canvas_h: f32,
+        stroke_w: f32,
+        running: bool,
+    ) -> Vec<u8> {
         let name_bytes = name.as_bytes();
         let payload_len = 2 + name_bytes.len() + 12 + 1;
         let mut buf = Vec::with_capacity(HEADER_SIZE + payload_len);

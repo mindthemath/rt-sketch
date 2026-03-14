@@ -1,6 +1,7 @@
 pub mod canvas;
 pub mod sampler;
 pub mod scorer;
+pub mod stamp;
 
 use rayon::prelude::*;
 use tiny_skia::Pixmap;
@@ -8,11 +9,13 @@ use tiny_skia::Pixmap;
 use crate::config::Config;
 use canvas::{Canvas, LineSegment};
 use sampler::{Distribution, LineSampler};
+use stamp::{StampCrop, StampLibrary};
 
 /// Result of a single engine step.
 pub struct StepResult {
-    /// The winning line that was added (if any improved the score).
-    pub winning_line: Option<LineSegment>,
+    /// The winning line(s) that were added (empty if none improved the score).
+    /// In random-line mode this has 0 or 1 elements; in stamp mode, 0 or N.
+    pub winning_lines: Vec<LineSegment>,
     /// MSE score after this step.
     pub score: f64,
 }
@@ -34,6 +37,10 @@ pub struct ProposalEngine {
     preview_pixmap: Pixmap,
     preview_width: u32,
     preview_height: u32,
+    /// Optional stamp library — when set, proposals come from stamps instead of random lines.
+    stamp_library: Option<StampLibrary>,
+    /// How to handle stamp lines that extend beyond canvas bounds.
+    stamp_crop: StampCrop,
 }
 
 impl ProposalEngine {
@@ -63,6 +70,8 @@ impl ProposalEngine {
             preview_pixmap,
             preview_width: prev_w,
             preview_height: prev_h,
+            stamp_library: None,
+            stamp_crop: StampCrop::default(),
         }
     }
 
@@ -79,6 +88,11 @@ impl ProposalEngine {
     pub fn set_length_sampler(&mut self, spec: &str) -> Result<(), String> {
         self.sampler.length = Distribution::parse(spec)?;
         Ok(())
+    }
+
+    pub fn set_stamp_library(&mut self, library: StampLibrary, crop: StampCrop) {
+        self.stamp_library = Some(library);
+        self.stamp_crop = crop;
     }
 
     pub fn reset(&mut self) {
@@ -107,17 +121,24 @@ impl ProposalEngine {
     /// Run one step: generate K proposals, score each, keep the best.
     /// `target` is the grayscale target image at processing resolution.
     pub fn step(&mut self, target: &[u8], k: usize) -> StepResult {
+        if self.stamp_library.is_some() {
+            self.step_stamps(target, k)
+        } else {
+            self.step_lines(target, k)
+        }
+    }
+
+    /// Step using random single-line proposals.
+    fn step_lines(&mut self, target: &[u8], k: usize) -> StepResult {
         let pw = self.processing_width;
         let ph = self.processing_height;
 
-        // Use the cached pixmap instead of re-rasterizing all lines
         let current_raster = Canvas::pixmap_to_gray(&self.cached_pixmap);
         let current_score = scorer::asymmetric_mse(&current_raster, target, self.alpha);
 
         let scale_x = pw as f64 / self.canvas.width_cm;
         let scale_y = ph as f64 / self.canvas.height_cm;
 
-        // Generate K candidate lines
         let candidates: Vec<LineSegment> = (0..k)
             .map(|_| {
                 self.sampler.sample(
@@ -130,8 +151,6 @@ impl ProposalEngine {
             })
             .collect();
 
-        // Score each candidate in parallel — clone the cached pixmap,
-        // draw only the one new line, then score.
         let scores: Vec<f64> = candidates
             .par_iter()
             .map(|line| {
@@ -142,7 +161,6 @@ impl ProposalEngine {
             })
             .collect();
 
-        // Find the best
         let (best_idx, &best_score) = scores
             .iter()
             .enumerate()
@@ -152,18 +170,83 @@ impl ProposalEngine {
         if best_score < current_score {
             let winning_line = candidates[best_idx];
             self.canvas.add_line(winning_line);
-            // Incrementally update cached pixmaps with just the new line
             Canvas::rasterize_line_onto(&mut self.cached_pixmap, &winning_line, scale_x, scale_y);
             let prev_sx = self.preview_width as f64 / self.canvas.width_cm;
             let prev_sy = self.preview_height as f64 / self.canvas.height_cm;
             Canvas::rasterize_line_onto(&mut self.preview_pixmap, &winning_line, prev_sx, prev_sy);
             StepResult {
-                winning_line: Some(winning_line),
+                winning_lines: vec![winning_line],
                 score: best_score,
             }
         } else {
             StepResult {
-                winning_line: None,
+                winning_lines: vec![],
+                score: current_score,
+            }
+        }
+    }
+
+    /// Step using stamp library proposals (multiple lines per candidate).
+    fn step_stamps(&mut self, target: &[u8], k: usize) -> StepResult {
+        let pw = self.processing_width;
+        let ph = self.processing_height;
+
+        let current_raster = Canvas::pixmap_to_gray(&self.cached_pixmap);
+        let current_score = scorer::asymmetric_mse(&current_raster, target, self.alpha);
+
+        let scale_x = pw as f64 / self.canvas.width_cm;
+        let scale_y = ph as f64 / self.canvas.height_cm;
+
+        let library = self.stamp_library.as_ref().unwrap();
+
+        let crop = self.stamp_crop;
+
+        // Generate K stamp candidates (each is a Vec<LineSegment>)
+        let candidates: Vec<Vec<LineSegment>> = (0..k)
+            .map(|_| {
+                library.sample(
+                    self.canvas.width_cm,
+                    self.canvas.height_cm,
+                    &self.sampler.x,
+                    &self.sampler.y,
+                    crop,
+                )
+            })
+            .collect();
+
+        // Score each candidate in parallel
+        let scores: Vec<f64> = candidates
+            .par_iter()
+            .map(|lines| {
+                let mut test_pixmap = self.cached_pixmap.clone();
+                Canvas::rasterize_lines_onto(&mut test_pixmap, lines, scale_x, scale_y);
+                let raster = Canvas::pixmap_to_gray(&test_pixmap);
+                scorer::asymmetric_mse(&raster, target, self.alpha)
+            })
+            .collect();
+
+        let (best_idx, &best_score) = scores
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .unwrap();
+
+        if best_score < current_score {
+            let winning_lines = candidates.into_iter().nth(best_idx).unwrap();
+            for line in &winning_lines {
+                self.canvas.add_line(*line);
+                Canvas::rasterize_line_onto(&mut self.cached_pixmap, line, scale_x, scale_y);
+                let prev_sx = self.preview_width as f64 / self.canvas.width_cm;
+                let prev_sy = self.preview_height as f64 / self.canvas.height_cm;
+                Canvas::rasterize_line_onto(&mut self.preview_pixmap, line, prev_sx, prev_sy);
+            }
+            StepResult {
+                winning_lines,
+                score: best_score,
+            }
+        } else {
+            StepResult {
+                winning_lines: vec![],
                 score: current_score,
             }
         }

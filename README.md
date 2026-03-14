@@ -63,7 +63,9 @@ The canvas aspect ratio is automatically adjusted to match the source (fit withi
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--k` | `200` | Number of random line proposals per step |
+| `--k` | `200` | Number of proposals per step |
+| `--stamp-library` | *(none)* | Stamp library CSV (local path or HTTP URL). When set, proposals use stamps instead of random lines |
+| `--stamp-crop` | `clip` | Edge handling for stamps: `clip` (geometric clipping), `drop` (discard out-of-bounds lines), or `none` (no cropping) |
 | `--alpha` | `2.0` | Asymmetric MSE penalty. 1.0 = standard MSE, >1 penalizes ink on whitespace more |
 | `--gamma` | `1.0` | Gamma correction for target image. <1 brightens, >1 darkens |
 | `--min-line-len` | `0.2` | Minimum line length in cm |
@@ -84,6 +86,70 @@ All preset modes use a Beta(a, b) distribution mapped to [0, 1]:
 | `low` | 10 | 2 | Concentrate toward 0 (left / top / short) |
 | `high` | 2 | 10 | Concentrate toward 1 (right / bottom / long) |
 | `beta:a,b` | a | b | Custom Beta distribution |
+
+### Stamp library mode
+
+Instead of proposing random lines, rt-sketch can propose **stamps** — collections of line segments loaded from SVG files. Each step, the engine picks a random stamp from the library, places it at a random position on the canvas, and scores the whole group of lines together.
+
+```bash
+rt-sketch --source image:photo.jpg --stamp-library ./stamps.csv --auto-start
+```
+
+The `--stamp-library` argument accepts a local file path or an HTTP URL to a CSV file. All stamps are fetched and parsed at startup, so there is no I/O during the drawing loop.
+
+#### CSV format
+
+The CSV must have a `path` column. An optional `scale` column multiplies all coordinates (default `1.0`). Extra columns are ignored. Lines starting with `#` are comments.
+
+```csv
+path,scale
+./stamps/cross.svg,1.0
+./stamps/hatching.svg,0.5
+https://example.com/stamps/star.svg,0.8
+```
+
+Each `path` can be a local file or HTTP URL. See `stamp-lib.csv.example` for a template.
+
+#### SVG format
+
+Each SVG should contain `<line>` elements with coordinates in cm. Any `stroke-width` in the SVG is ignored — all lines use the global `--stroke-width` value so the final drawing has uniform line thickness.
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line x1="0" y1="0" x2="1" y2="1"/>
+  <line x1="1" y1="0" x2="0" y2="1"/>
+</svg>
+```
+
+#### Edge handling (`--stamp-crop`)
+
+When a stamp is placed near the edge of the canvas, some lines may extend beyond the bounds. The `--stamp-crop` flag controls how these are handled:
+
+| Mode | Description |
+|------|-------------|
+| `clip` (default) | Clip lines to canvas bounds using line-segment intersection. Preserves angles and produces clean cropped edges. |
+| `drop` | Discard any line that has an endpoint outside the canvas. Stamps near edges lose out-of-bounds lines entirely. |
+| `none` | Leave endpoints as-is. Lines extend beyond the canvas in the SVG output; tiny-skia clips them during rasterization. |
+
+```bash
+# Default: proper geometric clipping
+rt-sketch --source image:photo.jpg --stamp-library stamps.csv
+
+# Drop out-of-bounds lines instead
+rt-sketch --source image:photo.jpg --stamp-library stamps.csv --stamp-crop drop
+
+# No cropping — allow out-of-bounds coordinates
+rt-sketch --source image:photo.jpg --stamp-library stamps.csv --stamp-crop none
+```
+
+#### How it works
+
+1. At startup, fetch and parse all SVGs listed in the CSV
+2. Each step, generate K proposals: pick a random stamp, translate it to a random canvas position (using the x/y samplers), apply edge handling per `--stamp-crop`
+3. Score each proposal by rasterizing all its lines onto a pixmap clone and computing asymmetric MSE
+4. If the best proposal improves the score, accept all its lines at once
+
+The `--k`, `--alpha`, `--x-sampler`, and `--y-sampler` flags work the same way as in random-line mode. The `--min-line-len`, `--max-line-len`, and `--length-sampler` flags have no effect in stamp mode since line geometry comes from the SVGs.
 
 ### Streaming and recording options
 
