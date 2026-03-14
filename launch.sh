@@ -49,13 +49,28 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+SAMPLERS=(uniform center edges low high)
+
 rand_name() {
     LC_ALL=C tr -dc 'a-z' < /dev/urandom | head -c 6 || true
+}
+
+rand_int() {
+    local lo=$1 hi=$2
+    echo $(( lo + RANDOM % (hi - lo + 1) ))
+}
+
+rand_sampler() {
+    echo "${SAMPLERS[RANDOM % ${#SAMPLERS[@]}]}"
 }
 
 for i in $(seq 1 "$NUM_INSTANCES"); do
     STREAM_NAME="$(rand_name)"
     LOG_FILE="$LOG_DIR/instance-${i}.log"
+    ALPHA="$(rand_int 1 8)"
+    X_SAMPLER="$(rand_sampler)"
+    Y_SAMPLER="$(rand_sampler)"
+    L_SAMPLER="$(rand_sampler)"
 
     CMD=(./rt-sketch
         --source "$SOURCE"
@@ -65,10 +80,16 @@ for i in $(seq 1 "$NUM_INSTANCES"); do
         --stream-tcp "$VIEWER_ADDR"
         --k 200
         --stream-name "$STREAM_NAME"
+        --alpha "$ALPHA"
+        --x-sampler "$X_SAMPLER"
+        --y-sampler "$Y_SAMPLER"
+        --length-sampler "$L_SAMPLER"
         --wait-for-viewer
         --auto-start
         --threads 2
     )
+
+    echo "[$i] alpha=$ALPHA x=$X_SAMPLER y=$Y_SAMPLER len=$L_SAMPLER"
 
     if [[ -n "$TIMEOUT" ]]; then
         CMD=(timeout "$TIMEOUT" "${CMD[@]}")
