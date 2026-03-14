@@ -94,6 +94,12 @@ jobs:
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
 
+      - name: Rename assets to include release tag
+        run: |
+          for f in rt-sketch-*.tar.gz; do
+            mv "$f" "${f/rt-sketch-/rt-sketch-${TAG}-}"
+          done
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
@@ -101,7 +107,7 @@ jobs:
           generate_release_notes: true
           make_latest: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
-          files: rt-sketch-*.tar.gz
+          files: rt-sketch-${{ env.TAG }}-*.tar.gz
           body: |
             ## Getting started
 
