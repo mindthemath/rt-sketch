@@ -245,10 +245,12 @@ fn engine_loop(
     initial_max_stamps: u64,
     initial_max_lines: u64,
 ) {
-    // Active limits — cleared by "continue", restored on "reset"
+    // Active limits — cleared by "continue" after limit reached, restored on "reset"
     let mut max_iter = initial_max_iter;
     let mut max_stamps = initial_max_stamps;
     let mut max_lines = initial_max_lines;
+    // True when the engine was auto-paused because a limit was reached
+    let mut limit_reached = false;
     // Stream output is spawned lazily on first "start"
     let mut stream: Option<stream_output::StreamOutput> = None;
 
@@ -379,11 +381,12 @@ fn engine_loop(
             match cmd {
                 tcp_output::ViewerCommand::Play => {
                     tracing::info!("viewer: play");
-                    // Clear limits on resume (override), but not after a fresh reset
-                    if *state.iteration.lock().unwrap() > 0 {
+                    // Only clear limits if resuming after a limit was reached
+                    if limit_reached {
                         max_iter = 0;
                         max_stamps = 0;
                         max_lines = 0;
+                        limit_reached = false;
                     }
                     *state.running.lock().unwrap() = true;
                     let _ = state.update_tx.send(UpdateMessage {
@@ -412,6 +415,7 @@ fn engine_loop(
                     max_iter = initial_max_iter;
                     max_stamps = initial_max_stamps;
                     max_lines = initial_max_lines;
+                    limit_reached = false;
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
                     *state.canvas.lock().unwrap() = engine.canvas.clone();
@@ -433,11 +437,12 @@ fn engine_loop(
         while let Ok(cmd) = control_rx.try_recv() {
             match cmd.command.as_str() {
                 "start" | "resume" => {
-                    // Clear limits on resume (override), but not after a fresh reset
-                    if cmd.command == "resume" && *state.iteration.lock().unwrap() > 0 {
+                    // Only clear limits if resuming after a limit was reached
+                    if cmd.command == "resume" && limit_reached {
                         max_iter = 0;
                         max_stamps = 0;
                         max_lines = 0;
+                        limit_reached = false;
                     }
                     // Spawn stream FFmpeg on first start
                     if stream.is_none() {
@@ -501,6 +506,7 @@ fn engine_loop(
                     max_iter = initial_max_iter;
                     max_stamps = initial_max_stamps;
                     max_lines = initial_max_lines;
+                    limit_reached = false;
                     *state.iteration.lock().unwrap() = 0;
                     *state.current_score.lock().unwrap() = 1.0;
                     *state.running.lock().unwrap() = false;
@@ -721,6 +727,7 @@ fn engine_loop(
         };
         if let Some(reason) = paused_reason {
             tracing::info!("limit reached: {}, pausing", reason);
+            limit_reached = true;
             *state.running.lock().unwrap() = false;
             if let Some(ref mut tcp) = tcp_output {
                 tcp.send_state(false);
