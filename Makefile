@@ -148,3 +148,5 @@ unlock:
 test-release:
 	gh workflow run release.yml --ref "$$(git branch --show-current)"
 
+stream:
+	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:"   -c:v libx264 -preset ultrafast -tune zerolatency  -pix_fmt yuv420p -f rtsp rtsp://localhost:8554/cam
