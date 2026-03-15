@@ -19,10 +19,17 @@ impl StreamOutput {
     ///   before the extension (e.g. output.2026-03-14T12:00:00Z.mp4)
     ///
     /// Exactly one of `url` or `path` should be Some.
-    pub fn new(width: u32, height: u32, fps: f64, url: Option<&str>, path: Option<&str>) -> Self {
+    pub fn new(
+        width: u32,
+        height: u32,
+        fps: f64,
+        url: Option<&str>,
+        path: Option<&str>,
+        stream_name: Option<&str>,
+    ) -> Self {
         let timestamped_path;
         let dest = if let Some(p) = path {
-            timestamped_path = stamp_filename(p);
+            timestamped_path = stamp_filename(p, stream_name);
             timestamped_path.as_str()
         } else {
             url.expect("stream output requires a URL or path")
@@ -101,24 +108,30 @@ impl StreamOutput {
     }
 }
 
-/// Insert an ISO 8601 UTC timestamp before the file extension.
-/// e.g. "output.mkv" → "output.2026-03-14T12:00:00Z.mkv"
-fn stamp_filename(template: &str) -> String {
+/// Insert an ISO 8601 UTC timestamp (and optional stream name) before the file extension.
+/// e.g. "output.mkv" → "output.2026-03-14T120000Z.mkv"
+/// e.g. "output.mkv" + stream_name "cam1" → "output-cam1.2026-03-14T120000Z.mkv"
+fn stamp_filename(template: &str, stream_name: Option<&str>) -> String {
     let path = Path::new(template);
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or(template);
     let ts = chrono::Utc::now().format("%Y-%m-%dT%H%M%SZ");
+    let name_part = if let Some(name) = stream_name {
+        format!("{}-{}", stem, name)
+    } else {
+        stem.to_string()
+    };
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("");
         if parent.is_empty() {
-            format!("{}.{}.{}", stem, ts, ext)
+            format!("{}.{}.{}", name_part, ts, ext)
         } else {
-            format!("{}/{}.{}.{}", parent, stem, ts, ext)
+            format!("{}/{}.{}.{}", parent, name_part, ts, ext)
         }
     } else {
-        format!("{}.{}", template, ts)
+        format!("{}.{}", name_part, ts)
     }
 }
 

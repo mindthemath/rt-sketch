@@ -257,6 +257,9 @@ fn engine_loop(
     // Shared running flag for TCP output — reported in HELLO on reconnect
     let tcp_running = Arc::new(AtomicBool::new(auto_start));
 
+    // Extract stream name before tcp_config is consumed
+    let stream_name: Option<String> = tcp_config.as_ref().map(|(_, n)| n.clone());
+
     // TCP viewer output — connects immediately if configured
     let mut tcp_output: Option<tcp_output::TcpOutput> = tcp_config.map(|(addr, name)| {
         tracing::info!("TCP viewer: {} as \"{}\"", addr, name);
@@ -362,6 +365,7 @@ fn engine_loop(
                 StreamConfig::Url(u) => (Some(u.as_str()), None),
                 StreamConfig::File(p) => (None, Some(p.as_str())),
             };
+            let sname = stream_name.as_deref();
             tracing::info!("starting stream output");
             stream = Some(stream_output::StreamOutput::new(
                 config.preview_width(),
@@ -369,6 +373,7 @@ fn engine_loop(
                 config.fps,
                 url,
                 path,
+                sname,
             ));
         }
         tracing::info!("engine ready, auto-starting");
@@ -466,6 +471,7 @@ fn engine_loop(
                                 StreamConfig::Url(u) => (Some(u.as_str()), None),
                                 StreamConfig::File(p) => (None, Some(p.as_str())),
                             };
+                            let sname = stream_name.as_deref();
                             tracing::info!("starting stream output");
                             stream = Some(stream_output::StreamOutput::new(
                                 config.preview_width(),
@@ -473,6 +479,7 @@ fn engine_loop(
                                 config.fps,
                                 url,
                                 path,
+                                sname,
                             ));
                         }
                     }
