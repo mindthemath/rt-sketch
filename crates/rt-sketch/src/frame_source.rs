@@ -239,13 +239,31 @@ impl FrameSource {
                 }
 
                 // Video/webcam: continuously read frames
+                const MAX_RETRIES: u32 = 1800;
+                let mut retries: u32 = 0;
                 while !shutdown_flag.load(Ordering::Relaxed) {
                     // Spawn ffmpeg
                     let mut child =
                         match spawn_ffmpeg(&source_owned, target_width, target_height, fps) {
-                            Some(c) => c,
+                            Some(c) => {
+                                retries = 0; // reset on successful spawn
+                                c
+                            }
                             None => {
-                                tracing::warn!("retrying ffmpeg in 2s...");
+                                retries += 1;
+                                if retries >= MAX_RETRIES {
+                                    tracing::error!(
+                                    "ffmpeg failed to start after {} retries (~{} min), giving up",
+                                    MAX_RETRIES,
+                                    MAX_RETRIES * 2 / 60
+                                );
+                                    return;
+                                }
+                                tracing::warn!(
+                                    "retrying ffmpeg in 2s... (attempt {}/{})",
+                                    retries,
+                                    MAX_RETRIES
+                                );
                                 thread::sleep(Duration::from_secs(2));
                                 continue;
                             }
@@ -270,6 +288,7 @@ impl FrameSource {
                         }
                         match stdout.read_exact(&mut buf) {
                             Ok(()) => {
+                                retries = 0; // reset on successful frame
                                 let mut slot = latest_writer.lock().unwrap();
                                 *slot = Some(buf.clone());
                             }
@@ -280,7 +299,20 @@ impl FrameSource {
                     // ffmpeg exited — clean up and retry
                     let _ = child.wait();
                     if !shutdown_flag.load(Ordering::Relaxed) {
-                        tracing::warn!("ffmpeg exited, restarting in 2s...");
+                        retries += 1;
+                        if retries >= MAX_RETRIES {
+                            tracing::error!(
+                                "ffmpeg exited {} times without recovery (~{} min), giving up",
+                                MAX_RETRIES,
+                                MAX_RETRIES * 2 / 60
+                            );
+                            return;
+                        }
+                        tracing::warn!(
+                            "ffmpeg exited, restarting in 2s... (attempt {}/{})",
+                            retries,
+                            MAX_RETRIES
+                        );
                         thread::sleep(Duration::from_secs(2));
                     }
                 }

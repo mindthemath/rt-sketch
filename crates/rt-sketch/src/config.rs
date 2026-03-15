@@ -156,11 +156,20 @@ pub struct Config {
 
 impl Config {
     pub fn from_args(args: &Args) -> Self {
+        let canvas_width = args.canvas_width.clamp(0.1, 1000.0);
+        let canvas_height = args.canvas_height.clamp(0.1, 1000.0);
+        if canvas_width != args.canvas_width || canvas_height != args.canvas_height {
+            tracing::warn!(
+                "canvas dimensions clamped to {:.1}x{:.1} cm (must be 0.1..1000.0)",
+                canvas_width,
+                canvas_height
+            );
+        }
         Self {
             fps: args.fps,
             resolution: args.resolution,
-            canvas_width_cm: args.canvas_width,
-            canvas_height_cm: args.canvas_height,
+            canvas_width_cm: canvas_width,
+            canvas_height_cm: canvas_height,
             ppi: args.ppi,
             k: args.k,
             x_sampler: args.x_sampler.clone(),

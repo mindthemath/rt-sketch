@@ -26,7 +26,7 @@ impl StreamOutput {
         url: Option<&str>,
         path: Option<&str>,
         stream_name: Option<&str>,
-    ) -> Self {
+    ) -> Option<Self> {
         let timestamped_path;
         let dest = if let Some(p) = path {
             timestamped_path = stamp_filename(p, stream_name);
@@ -76,15 +76,22 @@ impl StreamOutput {
 
         tracing::info!("spawning stream ffmpeg: {:?}", cmd);
 
-        let child = cmd
-            .spawn()
-            .expect("failed to spawn ffmpeg for streaming — is it installed?");
+        let child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(
+                    "failed to spawn ffmpeg for stream output: {}. Is ffmpeg installed and in PATH?",
+                    e
+                );
+                return None;
+            }
+        };
 
-        Self {
+        Some(Self {
             child,
             width,
             height,
-        }
+        })
     }
 
     /// Write a frame to the stream. `rgba_data` must be width*height*4 bytes.

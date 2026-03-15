@@ -115,6 +115,9 @@ async fn handle_connection(
         return Err("expected HELLO as first message".into());
     }
 
+    if header.payload_len > 1024 * 1024 {
+        return Err(format!("payload too large: {} bytes", header.payload_len).into());
+    }
     let mut payload = vec![0u8; header.payload_len as usize];
     stream.read_exact(&mut payload).await?;
 
@@ -214,8 +217,12 @@ async fn message_loop(
     state: &Arc<ViewerState>,
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    const MAX_PAYLOAD: u32 = 1024 * 1024;
     loop {
         let header = read_header_from(stream).await?;
+        if header.payload_len > MAX_PAYLOAD {
+            return Err(format!("payload too large: {} bytes", header.payload_len).into());
+        }
 
         match header.msg_type {
             MSG_LINE => {

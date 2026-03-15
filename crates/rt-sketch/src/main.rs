@@ -367,14 +367,14 @@ fn engine_loop(
             };
             let sname = stream_name.as_deref();
             tracing::info!("starting stream output");
-            stream = Some(stream_output::StreamOutput::new(
+            stream = stream_output::StreamOutput::new(
                 config.preview_width(),
                 config.preview_height(),
                 config.fps,
                 url,
                 path,
                 sname,
-            ));
+            );
         }
         tracing::info!("engine ready, auto-starting");
     } else {
@@ -473,14 +473,14 @@ fn engine_loop(
                             };
                             let sname = stream_name.as_deref();
                             tracing::info!("starting stream output");
-                            stream = Some(stream_output::StreamOutput::new(
+                            stream = stream_output::StreamOutput::new(
                                 config.preview_width(),
                                 config.preview_height(),
                                 config.fps,
                                 url,
                                 path,
                                 sname,
-                            ));
+                            );
                         }
                     }
                     *state.running.lock().unwrap() = true;
