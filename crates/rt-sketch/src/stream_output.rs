@@ -16,7 +16,7 @@ impl StreamOutput {
     /// - `fps`: constant output framerate
     /// - `url`: RTMP URL (e.g. rtmp://...) — adds silent audio track
     /// - `path`: output file template (e.g. output.mkv) — timestamp is inserted
-    ///   before the extension (e.g. output.2026-03-14T120000Z.mp4)
+    ///   before the extension (e.g. output.2026-03-14T120000Z.mkv)
     ///
     /// Exactly one of `url` or `path` should be Some.
     pub fn new(
@@ -118,17 +118,19 @@ fn stamp_filename(template: &str, stream_name: Option<&str>) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or(template);
     let ts = chrono::Utc::now().format("%Y-%m-%dT%H%M%SZ");
-    let safe_name = stream_name.map(|n| {
-        n.chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                    c
-                } else {
-                    '_'
-                }
-            })
-            .collect::<String>()
-    });
+    let safe_name = stream_name
+        .map(|n| {
+            n.chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
+                .collect::<String>()
+        })
+        .filter(|s| !s.is_empty());
     let name_part = if let Some(ref name) = safe_name {
         format!("{}-{}", stem, name)
     } else {

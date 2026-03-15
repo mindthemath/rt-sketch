@@ -193,6 +193,12 @@ impl Config {
 
     /// Processing resolution width, derived from height and canvas aspect ratio.
     pub fn processing_width(&self) -> u32 {
+        if self.canvas_height_cm <= 0.0
+            || !self.canvas_height_cm.is_finite()
+            || !self.canvas_width_cm.is_finite()
+        {
+            return self.resolution;
+        }
         let aspect = self.canvas_width_cm / self.canvas_height_cm;
         (self.resolution as f64 * aspect).round().max(1.0) as u32
     }
