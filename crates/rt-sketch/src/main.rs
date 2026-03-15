@@ -180,6 +180,7 @@ async fn main() {
     let max_iter = args.max_iter;
     let max_stamps = args.max_stamps;
     let max_lines = args.max_lines;
+    let stream_name = args.stream_name.clone();
     tokio::task::spawn_blocking(move || {
         engine_loop(
             engine_state,
@@ -198,6 +199,7 @@ async fn main() {
             max_iter,
             max_stamps,
             max_lines,
+            stream_name,
         );
     })
     .await
@@ -244,6 +246,7 @@ fn engine_loop(
     initial_max_iter: u64,
     initial_max_stamps: u64,
     initial_max_lines: u64,
+    stream_name: Option<String>,
 ) {
     // Active limits — cleared by "continue" after limit reached, restored on "reset"
     let mut max_iter = initial_max_iter;
@@ -256,9 +259,6 @@ fn engine_loop(
 
     // Shared running flag for TCP output — reported in HELLO on reconnect
     let tcp_running = Arc::new(AtomicBool::new(auto_start));
-
-    // Extract stream name before tcp_config is consumed
-    let stream_name: Option<String> = tcp_config.as_ref().map(|(_, n)| n.clone());
 
     // TCP viewer output — connects immediately if configured
     let mut tcp_output: Option<tcp_output::TcpOutput> = tcp_config.map(|(addr, name)| {
