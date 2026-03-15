@@ -156,11 +156,20 @@ pub struct Config {
 
 impl Config {
     pub fn from_args(args: &Args) -> Self {
+        let canvas_width = args.canvas_width.clamp(0.1, 1000.0);
+        let canvas_height = args.canvas_height.clamp(0.1, 1000.0);
+        if canvas_width != args.canvas_width || canvas_height != args.canvas_height {
+            tracing::warn!(
+                "canvas dimensions clamped to {:.1}x{:.1} cm (must be 0.1..1000.0)",
+                canvas_width,
+                canvas_height
+            );
+        }
         Self {
             fps: args.fps,
             resolution: args.resolution,
-            canvas_width_cm: args.canvas_width,
-            canvas_height_cm: args.canvas_height,
+            canvas_width_cm: canvas_width,
+            canvas_height_cm: canvas_height,
             ppi: args.ppi,
             k: args.k,
             x_sampler: args.x_sampler.clone(),
@@ -193,8 +202,14 @@ impl Config {
 
     /// Processing resolution width, derived from height and canvas aspect ratio.
     pub fn processing_width(&self) -> u32 {
+        if self.canvas_height_cm <= 0.0
+            || !self.canvas_height_cm.is_finite()
+            || !self.canvas_width_cm.is_finite()
+        {
+            return self.resolution;
+        }
         let aspect = self.canvas_width_cm / self.canvas_height_cm;
-        (self.resolution as f64 * aspect).round() as u32
+        (self.resolution as f64 * aspect).round().max(1.0) as u32
     }
 
     /// Preview pixel dimensions from canvas cm and PPI.

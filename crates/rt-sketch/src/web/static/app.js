@@ -141,120 +141,130 @@
     }
 
     // --- WebSocket ---
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    let ws;
+    let reconnectDelay = 1000;
 
     function send(command, value) {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ command, value }));
         }
     }
 
-    // On connect, push all restored settings to the server
-    ws.onopen = () => {
-        send("set_k", parseInt(sliderK.value, 10));
-        send("set_min_len", parseFloat(sliderMinLen.value));
-        send("set_max_len", parseFloat(sliderMaxLen.value));
-        send("set_alpha", parseFloat(sliderAlpha.value));
-        send("set_gamma", parseFloat(sliderGamma.value));
-        send("set_exposure", parseFloat(sliderExposure.value));
-        send("set_contrast", parseFloat(sliderContrast.value));
+    function connect() {
+        ws = new WebSocket(`${wsProto}${location.host}/ws`);
 
-        for (const [groupId, cmd] of [["radio-x-sampler", "set_x_sampler"], ["radio-y-sampler", "set_y_sampler"], ["radio-length-sampler", "set_length_sampler"]]) {
-            const checked = document.querySelector(`#${groupId} input[type=radio]:checked`);
-            if (checked) send(cmd, checked.value);
-        }
-    };
+        // On connect, push all restored settings to the server
+        ws.onopen = () => {
+            reconnectDelay = 1000;
+            send("set_k", parseInt(sliderK.value, 10));
+            send("set_min_len", parseFloat(sliderMinLen.value));
+            send("set_max_len", parseFloat(sliderMaxLen.value));
+            send("set_alpha", parseFloat(sliderAlpha.value));
+            send("set_gamma", parseFloat(sliderGamma.value));
+            send("set_exposure", parseFloat(sliderExposure.value));
+            send("set_contrast", parseFloat(sliderContrast.value));
 
-    ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-
-        if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
-        if (msg.canvas_height_cm) canvasHeightCm = msg.canvas_height_cm;
-
-        if (msg.paused_reason) {
-            pausedReason = msg.paused_reason;
-        }
-        if (msg.running !== undefined && msg.running !== null) {
-            isRunning = msg.running;
-            if (isRunning) {
-                hasStarted = true;
-                pausedReason = null;
+            for (const [groupId, cmd] of [["radio-x-sampler", "set_x_sampler"], ["radio-y-sampler", "set_y_sampler"], ["radio-length-sampler", "set_length_sampler"]]) {
+                const checked = document.querySelector(`#${groupId} input[type=radio]:checked`);
+                if (checked) send(cmd, checked.value);
             }
-            updateToggleButton();
-        }
+        };
 
-        if (msg.type === "reset") {
-            hideImg(canvasImg, canvasPlaceholder);
-            hideImg(previewImg, previewPlaceholder);
-            bboxOverlay.style.display = "none";
-            statFps.textContent = "-";
-            statLastLen.textContent = "-";
-            statLastBar.style.width = "0%";
-            hasStarted = false;
-            pausedReason = null;
-            updateToggleButton();
-        }
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
 
-        if (msg.canvas_png) {
-            canvasImg.src = "data:image/png;base64," + msg.canvas_png;
-            showImg(canvasImg, canvasPlaceholder);
-            updateFps();
-        }
-        // Bbox overlay
-        if (bboxEnabled && msg.last_bbox && canvasWidthCm > 0 && canvasHeightCm > 0) {
-            const [minX, minY, maxX, maxY] = msg.last_bbox;
-            const imgW = canvasImg.clientWidth;
-            const imgH = canvasImg.clientHeight;
-            const sx = imgW / canvasWidthCm;
-            const sy = imgH / canvasHeightCm;
-            bboxOverlay.style.left = (minX * sx) + "px";
-            bboxOverlay.style.top = (minY * sy) + "px";
-            bboxOverlay.style.width = ((maxX - minX) * sx) + "px";
-            bboxOverlay.style.height = ((maxY - minY) * sy) + "px";
-            bboxOverlay.style.display = "block";
-        } else if (!msg.last_bbox) {
-            bboxOverlay.style.display = "none";
-        }
-        if (msg.target_png) {
-            targetImg.src = "data:image/png;base64," + msg.target_png;
-            showImg(targetImg, targetPlaceholder);
-        }
-        if (msg.preview_png) {
-            previewImg.src = "data:image/png;base64," + msg.preview_png;
-            showImg(previewImg, previewPlaceholder);
-        }
-        if (msg.iteration !== undefined && msg.iteration !== null) {
-            statIteration.textContent = msg.iteration.toLocaleString();
-        }
-        if (msg.stamp_count !== undefined && msg.stamp_count !== null) {
-            statStampsWrap.style.display = "";
-            statStamps.textContent = msg.stamp_count.toLocaleString();
-        }
-        if (msg.line_count !== undefined && msg.line_count !== null) {
-            statLines.textContent = msg.line_count.toLocaleString();
-        }
-        if (msg.score !== undefined && msg.score !== null) {
-            statScore.textContent = msg.score.toFixed(6);
-        }
-        if (msg.k !== undefined && msg.k !== null) {
-            sliderK.value = msg.k;
-            valK.textContent = msg.k;
-        }
-        if (msg.last_line_len !== undefined && msg.last_line_len !== null) {
-            statLastLen.textContent = msg.last_line_len.toFixed(2);
-            const min = parseFloat(sliderMinLen.value);
-            const max = parseFloat(sliderMaxLen.value);
-            const pct = max > min ? ((msg.last_line_len - min) / (max - min)) * 100 : 50;
-            statLastBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
-        }
-        if (msg.total_length !== undefined && msg.total_length !== null) {
-            statTotal.textContent = msg.total_length.toFixed(1);
-        }
-    };
+            if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
+            if (msg.canvas_height_cm) canvasHeightCm = msg.canvas_height_cm;
 
-    ws.onclose = () => {
-        console.log("WebSocket closed");
-    };
+            if (msg.paused_reason) {
+                pausedReason = msg.paused_reason;
+            }
+            if (msg.running !== undefined && msg.running !== null) {
+                isRunning = msg.running;
+                if (isRunning) {
+                    hasStarted = true;
+                    pausedReason = null;
+                }
+                updateToggleButton();
+            }
+
+            if (msg.type === "reset") {
+                hideImg(canvasImg, canvasPlaceholder);
+                hideImg(previewImg, previewPlaceholder);
+                bboxOverlay.style.display = "none";
+                statFps.textContent = "-";
+                statLastLen.textContent = "-";
+                statLastBar.style.width = "0%";
+                hasStarted = false;
+                pausedReason = null;
+                updateToggleButton();
+            }
+
+            if (msg.canvas_png) {
+                canvasImg.src = "data:image/png;base64," + msg.canvas_png;
+                showImg(canvasImg, canvasPlaceholder);
+                updateFps();
+            }
+            // Bbox overlay
+            if (bboxEnabled && msg.last_bbox && canvasWidthCm > 0 && canvasHeightCm > 0) {
+                const [minX, minY, maxX, maxY] = msg.last_bbox;
+                const imgW = canvasImg.clientWidth;
+                const imgH = canvasImg.clientHeight;
+                const sx = imgW / canvasWidthCm;
+                const sy = imgH / canvasHeightCm;
+                bboxOverlay.style.left = (minX * sx) + "px";
+                bboxOverlay.style.top = (minY * sy) + "px";
+                bboxOverlay.style.width = ((maxX - minX) * sx) + "px";
+                bboxOverlay.style.height = ((maxY - minY) * sy) + "px";
+                bboxOverlay.style.display = "block";
+            } else if (!msg.last_bbox) {
+                bboxOverlay.style.display = "none";
+            }
+            if (msg.target_png) {
+                targetImg.src = "data:image/png;base64," + msg.target_png;
+                showImg(targetImg, targetPlaceholder);
+            }
+            if (msg.preview_png) {
+                previewImg.src = "data:image/png;base64," + msg.preview_png;
+                showImg(previewImg, previewPlaceholder);
+            }
+            if (msg.iteration !== undefined && msg.iteration !== null) {
+                statIteration.textContent = msg.iteration.toLocaleString();
+            }
+            if (msg.stamp_count !== undefined && msg.stamp_count !== null) {
+                statStampsWrap.style.display = "";
+                statStamps.textContent = msg.stamp_count.toLocaleString();
+            }
+            if (msg.line_count !== undefined && msg.line_count !== null) {
+                statLines.textContent = msg.line_count.toLocaleString();
+            }
+            if (msg.score !== undefined && msg.score !== null) {
+                statScore.textContent = msg.score.toFixed(6);
+            }
+            if (msg.k !== undefined && msg.k !== null) {
+                sliderK.value = msg.k;
+                valK.textContent = msg.k;
+            }
+            if (msg.last_line_len !== undefined && msg.last_line_len !== null) {
+                statLastLen.textContent = msg.last_line_len.toFixed(2);
+                const min = parseFloat(sliderMinLen.value);
+                const max = parseFloat(sliderMaxLen.value);
+                const pct = max > min ? ((msg.last_line_len - min) / (max - min)) * 100 : 50;
+                statLastBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
+            }
+            if (msg.total_length !== undefined && msg.total_length !== null) {
+                statTotal.textContent = msg.total_length.toFixed(1);
+            }
+        };
+
+        ws.onclose = () => {
+            setTimeout(connect, reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+        };
+    }
+
+    connect();
 
     // --- Controls ---
     function togglePlayPause() {

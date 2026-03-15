@@ -47,6 +47,11 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
         cmd.args(["-f", "v4l2"]);
     }
 
+    // Force TCP transport for RTSP streams
+    if input_path.starts_with("rtsp://") {
+        cmd.args(["-rtsp_transport", "tcp"]);
+    }
+
     cmd.arg(&input_path);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -56,7 +61,11 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
     if parts.len() == 2 {
         let w = parts[0].parse::<u32>().ok()?;
         let h = parts[1].parse::<u32>().ok()?;
-        Some((w, h))
+        if w > 0 && h > 0 {
+            Some((w, h))
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -136,6 +145,11 @@ fn build_ffmpeg_cmd(source: &str, target_width: u32, target_height: u32, fps: f6
             }
         }
         SourceSpec::Video(path) => {
+            // Force TCP transport for RTSP streams — UDP often hangs,
+            // especially through SSH tunnels.
+            if path.starts_with("rtsp://") {
+                cmd.arg("-rtsp_transport").arg("tcp");
+            }
             cmd.arg("-i").arg(path);
         }
     }
@@ -225,13 +239,31 @@ impl FrameSource {
                 }
 
                 // Video/webcam: continuously read frames
+                const MAX_RETRIES: u32 = 1800;
+                let mut retries: u32 = 0;
                 while !shutdown_flag.load(Ordering::Relaxed) {
                     // Spawn ffmpeg
                     let mut child =
                         match spawn_ffmpeg(&source_owned, target_width, target_height, fps) {
-                            Some(c) => c,
+                            Some(c) => {
+                                retries = 0; // reset on successful spawn
+                                c
+                            }
                             None => {
-                                tracing::warn!("retrying ffmpeg in 2s...");
+                                retries += 1;
+                                if retries >= MAX_RETRIES {
+                                    tracing::error!(
+                                    "ffmpeg failed to start after {} retries (~{} min), giving up",
+                                    MAX_RETRIES,
+                                    MAX_RETRIES * 2 / 60
+                                );
+                                    return;
+                                }
+                                tracing::warn!(
+                                    "retrying ffmpeg in 2s... (attempt {}/{})",
+                                    retries,
+                                    MAX_RETRIES
+                                );
                                 thread::sleep(Duration::from_secs(2));
                                 continue;
                             }
@@ -256,6 +288,7 @@ impl FrameSource {
                         }
                         match stdout.read_exact(&mut buf) {
                             Ok(()) => {
+                                retries = 0; // reset on successful frame
                                 let mut slot = latest_writer.lock().unwrap();
                                 *slot = Some(buf.clone());
                             }
@@ -266,7 +299,20 @@ impl FrameSource {
                     // ffmpeg exited — clean up and retry
                     let _ = child.wait();
                     if !shutdown_flag.load(Ordering::Relaxed) {
-                        tracing::warn!("ffmpeg exited, restarting in 2s...");
+                        retries += 1;
+                        if retries >= MAX_RETRIES {
+                            tracing::error!(
+                                "ffmpeg exited {} times without recovery (~{} min), giving up",
+                                MAX_RETRIES,
+                                MAX_RETRIES * 2 / 60
+                            );
+                            return;
+                        }
+                        tracing::warn!(
+                            "ffmpeg exited, restarting in 2s... (attempt {}/{})",
+                            retries,
+                            MAX_RETRIES
+                        );
                         thread::sleep(Duration::from_secs(2));
                     }
                 }

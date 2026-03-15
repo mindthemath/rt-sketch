@@ -74,7 +74,7 @@ header h1 {
 .still-fill {
     height: 100%;
     width: 0%;
-    background: #666;
+    background: #6f6;
     transition: width 0.3s ease;
 }
 
@@ -85,7 +85,7 @@ header h1 {
 
 .total-lines {
     font-size: 12px;
-    color: #666;
+    color: #fff;
     white-space: nowrap;
 }
 
@@ -141,7 +141,7 @@ main {
 }
 
 .instance .label .info {
-    color: #666;
+    color: #fff;
 }
 
 .instance .label .disconnected-badge {

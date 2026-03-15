@@ -15,7 +15,7 @@ run: build
 	./target/release/rt-sketch --source webcam:$(DEVICE) --canvas-height 20 --canvas-width 20 --fps $(FPS)
 
 record: build
-	./target/release/rt-sketch --source webcam:0 --stream-output recording.mkv --fps $(FPS) --canvas-width 20 --canvas-height 20
+	./target/release/rt-sketch --source webcam:0 --stream-output recording.mp4 --fps $(FPS) --canvas-width 20 --canvas-height 20 --auto-start --stream-name test
 
 record-image: build
 	./target/release/rt-sketch --source image:$(IMAGE) --stream-output recording.mkv --fps $(FPS) --canvas-height 20 --canvas-width 20
@@ -111,10 +111,10 @@ streamC:
 	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "cam-C" --fps 24 --wait-for-viewer --auto-start --threads 2
 
 stamp-stream-image:
-	cargo run --release -p rt-sketch -- --source image:$(IMAGE) --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
+	cargo run --release -p rt-sketch -- --source image:$(IMAGE) --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15 --max-stamps 75
 
 stamp-stream:
-	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15 --max-stamps 100
 
 viewer:
 	cargo run --release -p rt-viewer
@@ -148,3 +148,8 @@ unlock:
 test-release:
 	gh workflow run release.yml --ref "$$(git branch --show-current)"
 
+stream:
+	ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:"   -c:v libx264 -preset ultrafast -tune zerolatency  -pix_fmt yuv420p -f rtsp rtsp://localhost:8554/cam
+
+watch-release:
+	while true; do clear; gh run list --workflow=release.yml --limit 15; sleep 30; done
