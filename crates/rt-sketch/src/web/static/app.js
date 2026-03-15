@@ -142,31 +142,36 @@
 
     // --- WebSocket ---
     const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const ws = new WebSocket(`${wsProto}${location.host}/ws`);
+    let ws;
+    let reconnectDelay = 1000;
 
     function send(command, value) {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ command, value }));
         }
     }
 
-    // On connect, push all restored settings to the server
-    ws.onopen = () => {
-        send("set_k", parseInt(sliderK.value, 10));
-        send("set_min_len", parseFloat(sliderMinLen.value));
-        send("set_max_len", parseFloat(sliderMaxLen.value));
-        send("set_alpha", parseFloat(sliderAlpha.value));
-        send("set_gamma", parseFloat(sliderGamma.value));
-        send("set_exposure", parseFloat(sliderExposure.value));
-        send("set_contrast", parseFloat(sliderContrast.value));
+    function connect() {
+        ws = new WebSocket(`${wsProto}${location.host}/ws`);
 
-        for (const [groupId, cmd] of [["radio-x-sampler", "set_x_sampler"], ["radio-y-sampler", "set_y_sampler"], ["radio-length-sampler", "set_length_sampler"]]) {
-            const checked = document.querySelector(`#${groupId} input[type=radio]:checked`);
-            if (checked) send(cmd, checked.value);
-        }
-    };
+        // On connect, push all restored settings to the server
+        ws.onopen = () => {
+            reconnectDelay = 1000;
+            send("set_k", parseInt(sliderK.value, 10));
+            send("set_min_len", parseFloat(sliderMinLen.value));
+            send("set_max_len", parseFloat(sliderMaxLen.value));
+            send("set_alpha", parseFloat(sliderAlpha.value));
+            send("set_gamma", parseFloat(sliderGamma.value));
+            send("set_exposure", parseFloat(sliderExposure.value));
+            send("set_contrast", parseFloat(sliderContrast.value));
 
-    ws.onmessage = (event) => {
+            for (const [groupId, cmd] of [["radio-x-sampler", "set_x_sampler"], ["radio-y-sampler", "set_y_sampler"], ["radio-length-sampler", "set_length_sampler"]]) {
+                const checked = document.querySelector(`#${groupId} input[type=radio]:checked`);
+                if (checked) send(cmd, checked.value);
+            }
+        };
+
+        ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
 
         if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
@@ -253,9 +258,13 @@
         }
     };
 
-    ws.onclose = () => {
-        console.log("WebSocket closed");
-    };
+        ws.onclose = () => {
+            setTimeout(connect, reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+        };
+    }
+
+    connect();
 
     // --- Controls ---
     function togglePlayPause() {
