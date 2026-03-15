@@ -47,6 +47,11 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
         cmd.args(["-f", "v4l2"]);
     }
 
+    // Force TCP transport for RTSP streams
+    if input_path.starts_with("rtsp://") {
+        cmd.args(["-rtsp_transport", "tcp"]);
+    }
+
     cmd.arg(&input_path);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -56,7 +61,11 @@ pub fn probe_source_dimensions(source: &str) -> Option<(u32, u32)> {
     if parts.len() == 2 {
         let w = parts[0].parse::<u32>().ok()?;
         let h = parts[1].parse::<u32>().ok()?;
-        Some((w, h))
+        if w > 0 && h > 0 {
+            Some((w, h))
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -136,6 +145,11 @@ fn build_ffmpeg_cmd(source: &str, target_width: u32, target_height: u32, fps: f6
             }
         }
         SourceSpec::Video(path) => {
+            // Force TCP transport for RTSP streams — UDP often hangs,
+            // especially through SSH tunnels.
+            if path.starts_with("rtsp://") {
+                cmd.arg("-rtsp_transport").arg("tcp");
+            }
             cmd.arg("-i").arg(path);
         }
     }

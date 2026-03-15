@@ -382,14 +382,16 @@ mediamtx
 
 # macOS
 ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
-  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p \
   -f rtsp rtsp://localhost:8554/cam
 
 # Linux (Raspberry Pi / USB webcam)
 ffmpeg -f v4l2 -framerate 30 -video_size 640x480 -i /dev/video0 \
-  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p \
   -f rtsp rtsp://localhost:8554/cam
 ```
+
+`-pix_fmt yuv420p` forces the output to standard 4:2:0 chroma subsampling. Without it, some webcams (especially on macOS) produce 4:2:2 which causes mediamtx to reject the stream with a `400 Bad Request`. The quality difference is invisible at these resolutions.
 
 #### Test the feed
 
@@ -454,6 +456,55 @@ rt-sketch --source video:udp://239.0.0.1:1234 \
 ```
 
 UDP multicast is the simplest option — no extra software, any number of clients, minimal latency. The downside is it only works on a LAN and doesn't traverse tunnels or the internet.
+
+### Remote setup (over the internet via SSH tunnels)
+
+Camera on your laptop, workers on remote machines you can SSH into. Each remote machine gets an SSH tunnel that forwards the RTSP feed back to your laptop — no extra infrastructure needed.
+
+```
+                                    [Remote Machine A: N workers] ──TCP──┐
+[Laptop: mediamtx + ffmpeg] ──SSH──→ [Remote Machine B: N workers] ──TCP──┤──→ [Viewer]
+                            ──SSH──→ [Remote Machine C: N workers] ──TCP──┘
+                            ──SSH──→
+```
+
+**Laptop** — start mediamtx and the webcam feed:
+```bash
+# Terminal 1
+mediamtx
+
+# Terminal 2 (macOS)
+ffmpeg -f avfoundation -framerate 30 -video_size 640x480 -i "0:" \
+  -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p \
+  -f rtsp rtsp://localhost:8554/cam
+```
+
+**SSH tunnels** — open a remote forward to each machine. The `-R` flag makes `localhost:8554` on the remote machine point back to mediamtx on your laptop:
+```bash
+# One per remote machine (run in separate terminals or background scripts)
+ssh -R 8554:localhost:8554 user@remote-machine-A
+ssh -R 8554:localhost:8554 user@remote-machine-B
+ssh -R 8554:localhost:8554 user@remote-machine-C
+```
+
+To keep tunnels alive automatically:
+```bash
+while true; do ssh -R 8554:localhost:8554 user@remote-machine-A; sleep 2; done
+```
+
+**Remote machines** — all workers on the same machine share the single tunnel:
+```bash
+rt-sketch --source video:rtsp://localhost:8554/cam \
+  --stream-tcp <viewer-ip>:9900 \
+  --stream-name "bot-A" \
+  --auto-start \
+  --wait-for-viewer \
+  --threads 2
+```
+
+Since each machine may run many workers, use `--threads` to cap CPU per worker (see [multi-instance capacity planning](#multi-instance-capacity-planning)). All workers on the same machine consume `localhost:8554` — mediamtx handles multiple RTSP clients over the single tunnel with no issues.
+
+The viewer TCP port (9900) also needs to be reachable from the remote machines. If the viewer is on your laptop, you can either expose it directly or add another SSH tunnel (`-R 9900:localhost:9900`).
 
 ### Remote setup (over the internet via Cloudflare Tunnels)
 
