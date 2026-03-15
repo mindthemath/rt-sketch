@@ -419,7 +419,7 @@ let ws;
 let reconnectDelay = 1000;
 
 function connect() {
-    ws = new WebSocket("ws://" + location.host + "/ws");
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
 
     ws.onopen = function () {
         statusEl.textContent = "200";

@@ -141,7 +141,8 @@
     }
 
     // --- WebSocket ---
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const ws = new WebSocket(`${wsProto}${location.host}/ws`);
 
     function send(command, value) {
         if (ws.readyState === WebSocket.OPEN) {
