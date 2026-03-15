@@ -172,91 +172,91 @@
         };
 
         ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
+            const msg = JSON.parse(event.data);
 
-        if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
-        if (msg.canvas_height_cm) canvasHeightCm = msg.canvas_height_cm;
+            if (msg.canvas_width_cm) canvasWidthCm = msg.canvas_width_cm;
+            if (msg.canvas_height_cm) canvasHeightCm = msg.canvas_height_cm;
 
-        if (msg.paused_reason) {
-            pausedReason = msg.paused_reason;
-        }
-        if (msg.running !== undefined && msg.running !== null) {
-            isRunning = msg.running;
-            if (isRunning) {
-                hasStarted = true;
-                pausedReason = null;
+            if (msg.paused_reason) {
+                pausedReason = msg.paused_reason;
             }
-            updateToggleButton();
-        }
+            if (msg.running !== undefined && msg.running !== null) {
+                isRunning = msg.running;
+                if (isRunning) {
+                    hasStarted = true;
+                    pausedReason = null;
+                }
+                updateToggleButton();
+            }
 
-        if (msg.type === "reset") {
-            hideImg(canvasImg, canvasPlaceholder);
-            hideImg(previewImg, previewPlaceholder);
-            bboxOverlay.style.display = "none";
-            statFps.textContent = "-";
-            statLastLen.textContent = "-";
-            statLastBar.style.width = "0%";
-            hasStarted = false;
-            pausedReason = null;
-            updateToggleButton();
-        }
+            if (msg.type === "reset") {
+                hideImg(canvasImg, canvasPlaceholder);
+                hideImg(previewImg, previewPlaceholder);
+                bboxOverlay.style.display = "none";
+                statFps.textContent = "-";
+                statLastLen.textContent = "-";
+                statLastBar.style.width = "0%";
+                hasStarted = false;
+                pausedReason = null;
+                updateToggleButton();
+            }
 
-        if (msg.canvas_png) {
-            canvasImg.src = "data:image/png;base64," + msg.canvas_png;
-            showImg(canvasImg, canvasPlaceholder);
-            updateFps();
-        }
-        // Bbox overlay
-        if (bboxEnabled && msg.last_bbox && canvasWidthCm > 0 && canvasHeightCm > 0) {
-            const [minX, minY, maxX, maxY] = msg.last_bbox;
-            const imgW = canvasImg.clientWidth;
-            const imgH = canvasImg.clientHeight;
-            const sx = imgW / canvasWidthCm;
-            const sy = imgH / canvasHeightCm;
-            bboxOverlay.style.left = (minX * sx) + "px";
-            bboxOverlay.style.top = (minY * sy) + "px";
-            bboxOverlay.style.width = ((maxX - minX) * sx) + "px";
-            bboxOverlay.style.height = ((maxY - minY) * sy) + "px";
-            bboxOverlay.style.display = "block";
-        } else if (!msg.last_bbox) {
-            bboxOverlay.style.display = "none";
-        }
-        if (msg.target_png) {
-            targetImg.src = "data:image/png;base64," + msg.target_png;
-            showImg(targetImg, targetPlaceholder);
-        }
-        if (msg.preview_png) {
-            previewImg.src = "data:image/png;base64," + msg.preview_png;
-            showImg(previewImg, previewPlaceholder);
-        }
-        if (msg.iteration !== undefined && msg.iteration !== null) {
-            statIteration.textContent = msg.iteration.toLocaleString();
-        }
-        if (msg.stamp_count !== undefined && msg.stamp_count !== null) {
-            statStampsWrap.style.display = "";
-            statStamps.textContent = msg.stamp_count.toLocaleString();
-        }
-        if (msg.line_count !== undefined && msg.line_count !== null) {
-            statLines.textContent = msg.line_count.toLocaleString();
-        }
-        if (msg.score !== undefined && msg.score !== null) {
-            statScore.textContent = msg.score.toFixed(6);
-        }
-        if (msg.k !== undefined && msg.k !== null) {
-            sliderK.value = msg.k;
-            valK.textContent = msg.k;
-        }
-        if (msg.last_line_len !== undefined && msg.last_line_len !== null) {
-            statLastLen.textContent = msg.last_line_len.toFixed(2);
-            const min = parseFloat(sliderMinLen.value);
-            const max = parseFloat(sliderMaxLen.value);
-            const pct = max > min ? ((msg.last_line_len - min) / (max - min)) * 100 : 50;
-            statLastBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
-        }
-        if (msg.total_length !== undefined && msg.total_length !== null) {
-            statTotal.textContent = msg.total_length.toFixed(1);
-        }
-    };
+            if (msg.canvas_png) {
+                canvasImg.src = "data:image/png;base64," + msg.canvas_png;
+                showImg(canvasImg, canvasPlaceholder);
+                updateFps();
+            }
+            // Bbox overlay
+            if (bboxEnabled && msg.last_bbox && canvasWidthCm > 0 && canvasHeightCm > 0) {
+                const [minX, minY, maxX, maxY] = msg.last_bbox;
+                const imgW = canvasImg.clientWidth;
+                const imgH = canvasImg.clientHeight;
+                const sx = imgW / canvasWidthCm;
+                const sy = imgH / canvasHeightCm;
+                bboxOverlay.style.left = (minX * sx) + "px";
+                bboxOverlay.style.top = (minY * sy) + "px";
+                bboxOverlay.style.width = ((maxX - minX) * sx) + "px";
+                bboxOverlay.style.height = ((maxY - minY) * sy) + "px";
+                bboxOverlay.style.display = "block";
+            } else if (!msg.last_bbox) {
+                bboxOverlay.style.display = "none";
+            }
+            if (msg.target_png) {
+                targetImg.src = "data:image/png;base64," + msg.target_png;
+                showImg(targetImg, targetPlaceholder);
+            }
+            if (msg.preview_png) {
+                previewImg.src = "data:image/png;base64," + msg.preview_png;
+                showImg(previewImg, previewPlaceholder);
+            }
+            if (msg.iteration !== undefined && msg.iteration !== null) {
+                statIteration.textContent = msg.iteration.toLocaleString();
+            }
+            if (msg.stamp_count !== undefined && msg.stamp_count !== null) {
+                statStampsWrap.style.display = "";
+                statStamps.textContent = msg.stamp_count.toLocaleString();
+            }
+            if (msg.line_count !== undefined && msg.line_count !== null) {
+                statLines.textContent = msg.line_count.toLocaleString();
+            }
+            if (msg.score !== undefined && msg.score !== null) {
+                statScore.textContent = msg.score.toFixed(6);
+            }
+            if (msg.k !== undefined && msg.k !== null) {
+                sliderK.value = msg.k;
+                valK.textContent = msg.k;
+            }
+            if (msg.last_line_len !== undefined && msg.last_line_len !== null) {
+                statLastLen.textContent = msg.last_line_len.toFixed(2);
+                const min = parseFloat(sliderMinLen.value);
+                const max = parseFloat(sliderMaxLen.value);
+                const pct = max > min ? ((msg.last_line_len - min) / (max - min)) * 100 : 50;
+                statLastBar.style.width = Math.max(0, Math.min(100, pct)) + "%";
+            }
+            if (msg.total_length !== undefined && msg.total_length !== null) {
+                statTotal.textContent = msg.total_length.toFixed(1);
+            }
+        };
 
         ws.onclose = () => {
             setTimeout(connect, reconnectDelay);
