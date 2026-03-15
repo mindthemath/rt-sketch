@@ -65,7 +65,7 @@ impl StreamOutput {
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(Stdio::inherit());
 
         tracing::info!("spawning stream ffmpeg: {:?}", cmd);
 
@@ -109,7 +109,7 @@ fn stamp_filename(template: &str) -> String {
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or(template);
-    let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    let ts = chrono::Utc::now().format("%Y-%m-%dT%H%M%SZ");
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("");
         if parent.is_empty() {

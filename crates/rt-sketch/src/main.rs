@@ -356,6 +356,21 @@ fn engine_loop(
 
     if auto_start {
         *state.running.lock().unwrap() = true;
+        // Spawn stream output on auto-start (normally spawned on first "start" command)
+        if let Some(ref sc) = stream_config {
+            let (url, path) = match sc {
+                StreamConfig::Url(u) => (Some(u.as_str()), None),
+                StreamConfig::File(p) => (None, Some(p.as_str())),
+            };
+            tracing::info!("starting stream output");
+            stream = Some(stream_output::StreamOutput::new(
+                config.preview_width(),
+                config.preview_height(),
+                config.fps,
+                url,
+                path,
+            ));
+        }
         tracing::info!("engine ready, auto-starting");
     } else {
         tracing::info!("engine ready, waiting for start command...");
