@@ -114,7 +114,7 @@ stamp-stream-image:
 	cargo run --release -p rt-sketch -- --source image:$(IMAGE) --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15 --max-stamps 75
 
 stamp-stream:
-	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15
+	cargo run --release -p rt-sketch -- --source webcam --stream-tcp localhost:9900 --stream-name "stamps-1" --fps 24 --wait-for-viewer --auto-start --threads 4 --stamp-library $(STAMP_LIB) --stamp-crop $(STAMP_CROP) --canvas-width 15 --canvas-height 15 --max-stamps 100
 
 viewer:
 	cargo run --release -p rt-viewer
